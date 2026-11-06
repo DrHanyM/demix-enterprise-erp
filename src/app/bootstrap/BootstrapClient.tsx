@@ -10,12 +10,24 @@ type BootstrapResult = {
   permissionCodes: string[];
 };
 
+type TableCount = { count: number; capped: boolean };
+
 type IdentityCheck = {
   authenticated: boolean;
   hasEmail: boolean;
   hasName: boolean;
   subjectMatchesAllowlist: boolean;
+  dataCounts: {
+    users: TableCount;
+    roles: TableCount;
+    permissions: TableCount;
+    centralUserRoles: TableCount;
+  } | null;
 };
+
+function formatCount(value: TableCount) {
+  return value.capped ? `${value.count}+` : String(value.count);
+}
 
 export default function BootstrapClient() {
   const bootstrap = useAction(api.bootstrapAction.bootstrapFirstCentralAdmin);
@@ -105,6 +117,16 @@ export default function BootstrapClient() {
             <p>
               الحساب مصرح له: {identityCheck.subjectMatchesAllowlist ? "نعم" : "لا"}
             </p>
+            {identityCheck.dataCounts && (
+              <div className="mt-3 border-t border-slate-200 pt-3">
+                <p className="font-bold">فحص قاعدة بيانات Preview (قراءة فقط)</p>
+                <p>المستخدمون (users): {formatCount(identityCheck.dataCounts.users)}</p>
+                <p>الأدوار (roles): {formatCount(identityCheck.dataCounts.roles)}</p>
+                <p>الصلاحيات (permissions): {formatCount(identityCheck.dataCounts.permissions)}</p>
+                <p>ربط المديرين بالأدوار (centralUserRoles): {formatCount(identityCheck.dataCounts.centralUserRoles)}</p>
+                <p className="mt-2 text-xs text-slate-500">الفحص لا يعرض بيانات شخصية ولا يغيّر أي سجل. علامة + تعني أن العدد تجاوز 1000.</p>
+              </div>
+            )}
           </div>
         )}
 
