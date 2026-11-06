@@ -5,7 +5,11 @@ import { internal } from "./_generated/api";
 
 export const bootstrapFirstCentralAdmin = action({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<{
+    success: boolean;
+    permissionsCount: number;
+    permissionCodes: string[];
+  }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("UNAUTHENTICATED");
 
