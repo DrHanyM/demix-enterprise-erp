@@ -34,7 +34,7 @@ export const createFirstCentralAdmin = internalMutation({
     if (users.length || roles.length) throw new Error("BOOTSTRAP_ALREADY_CLOSED");
 
     const existingAudit = await ctx.db.query("auditLogs")
-      .withIndex("by_operation", q => q.eq("operationId", "bootstrap-central-super-admin-v1"))
+      .withIndex("by_operation", q => q.eq("operationId", `bootstrap-central-super-admin-v1-${authSubject}`))
       .first();
     if (existingAudit) throw new Error("BOOTSTRAP_ALREADY_COMPLETED");
 
@@ -67,7 +67,7 @@ export const createFirstCentralAdmin = internalMutation({
     await ctx.db.insert("auditLogs", {
       actorUserId: userId, action: "system.central_admin.bootstrap",
       entityType: "central_role", entityId: roleId,
-      operationId: "bootstrap-central-super-admin-v1",
+      operationId: `bootstrap-central-super-admin-v1-${authSubject}`,
       details: { roleCode: "CENTRAL_SUPER_ADMIN", permissionsCount: codes.length, permissionCodes: codes },
       createdAt: now,
     });
