@@ -38,12 +38,19 @@ export const inspectBootstrapIdentity = action({
     const identity = await ctx.auth.getUserIdentity();
     const allowedSubject = process.env.DEMIX_BOOTSTRAP_CLERK_SUBJECT;
 
+    const subjectMatchesAllowlist =
+      !!identity && !!allowedSubject && identity.subject === allowedSubject;
+
+    const dataCounts = subjectMatchesAllowlist
+      ? await ctx.runQuery(internal.bootstrap.getBootstrapDataCounts, {})
+      : null;
+
     return {
       authenticated: !!identity,
       hasEmail: !!identity?.email,
       hasName: !!identity?.name,
-      subjectMatchesAllowlist:
-        !!identity && !!allowedSubject && identity.subject === allowedSubject,
+      subjectMatchesAllowlist,
+      dataCounts,
     };
   },
 });
