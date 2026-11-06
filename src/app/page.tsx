@@ -1,12 +1,13 @@
+import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 
 const menuGroups: {
   title: string;
-  items: { icon: string; label: string; active?: boolean }[];
+  items: { icon: string; label: string; active?: boolean; href?: string }[];
 }[] = [
   {
     title: "الرئيسية",
-    items: [{ icon: "▦", label: "لوحة التحكم", active: true }],
+    items: [{ icon: "▦", label: "لوحة التحكم", active: true, href: "/" }],
   },
   {
     title: "إدارة الموارد البشرية",
@@ -29,9 +30,9 @@ const menuGroups: {
   {
     title: "إدارة النظام",
     items: [
-      { icon: "⌂", label: "الشركات والمحطات" },
-      { icon: "⚙", label: "المستخدمون والصلاحيات" },
-      { icon: "◈", label: "سجل المراجعة" },
+      { icon: "⌂", label: "الشركات والمحطات", href: "/stations" },
+      { icon: "⚙", label: "المستخدمون والصلاحيات", href: "/users" },
+      { icon: "◈", label: "سجل المراجعة", href: "/audit-logs" },
       { icon: "⚙", label: "إعدادات النظام" },
     ],
   },
@@ -180,24 +181,40 @@ export default async function Home() {
                   {group.title}
                 </div>
                 <div className="space-y-1">
-                  {group.items.map((item) => (
-                    <div
-                      key={item.label}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs ${
-                        item.active
-                          ? "bg-teal-400 font-bold text-[#172b4d]"
-                          : "text-slate-200"
-                      }`}
-                    >
-                      <span className="w-5 text-center text-base">
-                        {item.icon}
-                      </span>
-                      <span>{item.label}</span>
-                      {item.active && (
-                        <span className="mr-auto h-1.5 w-1.5 rounded-full bg-[#172b4d]" />
-                      )}
-                    </div>
-                  ))}
+                  {group.items.map((item) => {
+                    const itemClass = `flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs transition-colors ${
+                      item.active
+                        ? "bg-teal-400 font-bold text-[#172b4d]"
+                        : "text-slate-200 hover:bg-white/10"
+                    }`;
+
+                    const itemContent = (
+                      <>
+                        <span className="w-5 text-center text-base">
+                          {item.icon}
+                        </span>
+                        <span>{item.label}</span>
+                        {item.active && (
+                          <span className="mr-auto h-1.5 w-1.5 rounded-full bg-[#172b4d]" />
+                        )}
+                      </>
+                    );
+
+                    return item.href ? (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        aria-current={item.active ? "page" : undefined}
+                        className={itemClass}
+                      >
+                        {itemContent}
+                      </Link>
+                    ) : (
+                      <div key={item.label} className={itemClass}>
+                        {itemContent}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
