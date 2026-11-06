@@ -30,11 +30,25 @@ export const bootstrapFirstCentralAdmin = action({
   },
 });
 
-// Temporary Preview-only identity diagnostic.
-// Returns boolean flags only; never exposes profile data.
+type BootstrapTableCount = { count: number; capped: boolean };
+type BootstrapDataCounts = {
+  users: BootstrapTableCount;
+  roles: BootstrapTableCount;
+  permissions: BootstrapTableCount;
+  centralUserRoles: BootstrapTableCount;
+};
+
+// Temporary Preview-only identity and read-only data diagnostic.
+// Returns boolean identity flags and table counts only; never exposes profile data.
 export const inspectBootstrapIdentity = action({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<{
+    authenticated: boolean;
+    hasEmail: boolean;
+    hasName: boolean;
+    subjectMatchesAllowlist: boolean;
+    dataCounts: BootstrapDataCounts | null;
+  }> => {
     const identity = await ctx.auth.getUserIdentity();
     const allowedSubject = process.env.DEMIX_BOOTSTRAP_CLERK_SUBJECT;
 
