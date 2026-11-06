@@ -1,4 +1,4 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 const PERMISSIONS = [
@@ -72,5 +72,31 @@ export const createFirstCentralAdmin = internalMutation({
       createdAt: now,
     });
     return { success: true, permissionsCount: codes.length, permissionCodes: codes };
+  },
+});
+
+
+// Read-only Preview bootstrap preflight. Returns counts only, never document data.
+export const getBootstrapDataCounts = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const [users, roles, permissions, centralUserRoles] = await Promise.all([
+      ctx.db.query("users").take(1001),
+      ctx.db.query("roles").take(1001),
+      ctx.db.query("permissions").take(1001),
+      ctx.db.query("centralUserRoles").take(1001),
+    ]);
+
+    const summarize = (rows: unknown[]) => ({
+      count: Math.min(rows.length, 1000),
+      capped: rows.length > 1000,
+    });
+
+    return {
+      users: summarize(users),
+      roles: summarize(roles),
+      permissions: summarize(permissions),
+      centralUserRoles: summarize(centralUserRoles),
+    };
   },
 });
