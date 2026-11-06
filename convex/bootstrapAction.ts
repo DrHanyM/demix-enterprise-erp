@@ -29,3 +29,21 @@ export const bootstrapFirstCentralAdmin = action({
     });
   },
 });
+
+// Temporary Preview-only identity diagnostic.
+// Returns boolean flags only; never exposes profile data.
+export const inspectBootstrapIdentity = action({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    const allowedSubject = process.env.DEMIX_BOOTSTRAP_CLERK_SUBJECT;
+
+    return {
+      authenticated: !!identity,
+      hasEmail: !!identity?.email,
+      hasName: !!identity?.name,
+      subjectMatchesAllowlist:
+        !!identity && !!allowedSubject && identity.subject === allowedSubject,
+    };
+  },
+});

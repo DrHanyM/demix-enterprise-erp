@@ -10,11 +10,40 @@ type BootstrapResult = {
   permissionCodes: string[];
 };
 
+type IdentityCheck = {
+  authenticated: boolean;
+  hasEmail: boolean;
+  hasName: boolean;
+  subjectMatchesAllowlist: boolean;
+};
+
 export default function BootstrapClient() {
   const bootstrap = useAction(api.bootstrapAction.bootstrapFirstCentralAdmin);
+  const inspectIdentity = useAction(api.bootstrapAction.inspectBootstrapIdentity);
+
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [identityCheck, setIdentityCheck] = useState<IdentityCheck | null>(null);
   const [result, setResult] = useState<BootstrapResult | null>(null);
   const [error, setError] = useState("");
+  const [checkError, setCheckError] = useState("");
+
+  async function handleIdentityCheck() {
+    if (checking) return;
+
+    setChecking(true);
+    setCheckError("");
+    setIdentityCheck(null);
+
+    try {
+      const response = (await inspectIdentity({})) as IdentityCheck;
+      setIdentityCheck(response);
+    } catch {
+      setCheckError("تعذر إجراء اختبار الهوية. تحقق من الاتصال ثم أعد المحاولة.");
+    } finally {
+      setChecking(false);
+    }
+  }
 
   async function handleBootstrap() {
     if (loading || result?.success) return;
@@ -55,9 +84,35 @@ export default function BootstrapClient() {
         </div>
 
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-7 text-amber-900">
-          لا تضغط على الزر أكثر من مرة. عملية التهيئة تُنفّذ مرة واحدة فقط،
+          لا تضغط على زر التهيئة أكثر من مرة. عملية التهيئة تُنفّذ مرة واحدة فقط،
           وتُرفض تلقائيًا إذا سبق إنشاء بيانات المستخدمين أو الأدوار.
         </div>
+
+        <button
+          type="button"
+          onClick={handleIdentityCheck}
+          disabled={checking}
+          className="mt-6 w-full rounded-xl border border-teal-700 px-5 py-3 text-sm font-bold text-teal-800 transition hover:bg-teal-50 disabled:opacity-60"
+        >
+          {checking ? "جارٍ اختبار الاتصال والهوية..." : "اختبار الاتصال والهوية"}
+        </button>
+
+        {identityCheck && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-8">
+            <p>الاتصال موثّق: {identityCheck.authenticated ? "نعم" : "لا"}</p>
+            <p>البريد موجود: {identityCheck.hasEmail ? "نعم" : "لا"}</p>
+            <p>الاسم موجود: {identityCheck.hasName ? "نعم" : "لا"}</p>
+            <p>
+              الحساب مصرح له: {identityCheck.subjectMatchesAllowlist ? "نعم" : "لا"}
+            </p>
+          </div>
+        )}
+
+        {checkError && (
+          <div role="alert" className="mt-4 rounded-xl bg-rose-50 p-4 text-sm text-rose-800">
+            {checkError}
+          </div>
+        )}
 
         <button
           type="button"
