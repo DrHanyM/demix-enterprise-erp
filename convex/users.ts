@@ -1,4 +1,4 @@
-﻿import { query } from "./_generated/server";
+import { query } from "./_generated/server";
 import { requireCentralPermission } from "./lib/auth";
 
 export const listUsers = query({
@@ -6,6 +6,7 @@ export const listUsers = query({
   handler: async (ctx) => {
     await requireCentralPermission(ctx, "system.users.manage");
 
+    const identity = await ctx.auth.getUserIdentity();
     const users = await ctx.db
       .query("users")
       .collect();
@@ -14,6 +15,7 @@ export const listUsers = query({
       .map((user) => ({
         id: user._id,
         email: user.email,
+        isCurrentUser: user.authSubject === identity?.subject,
         fullName: user.fullName,
         status: user.status,
         createdAt: user.createdAt,
