@@ -95,6 +95,7 @@ export async function POST(request: Request) {
     const clerkInvitation =
       await clerk.invitations.createInvitation({
         emailAddress: invitation.email,
+        redirectUrl: new URL("/sign-up", request.url).toString(),
         expiresInDays: INVITATION_EXPIRY_DAYS,
         notify: true,
         publicMetadata: {
