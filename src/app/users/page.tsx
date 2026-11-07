@@ -38,7 +38,7 @@ export default function UsersPage() {
   const invitationList = invitations ?? [];
   const getDisplayEmail = (user: (typeof users)[number]) => {
     const storedEmail = user.email?.trim() ?? "";
-    const isTemplateValue = /^\\{\\{.*\\}\\}$/.test(storedEmail);
+    const isTemplateValue = /^\{\{.*\}\}$/.test(storedEmail);
     if (user.isCurrentUser && isTemplateValue) {
       return clerkUser?.primaryEmailAddress?.emailAddress ?? "جارٍ تحميل البريد الإلكتروني";
     }
