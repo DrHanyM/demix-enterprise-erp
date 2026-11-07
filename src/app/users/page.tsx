@@ -1,7 +1,8 @@
-﻿
+
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
@@ -14,6 +15,7 @@ type InvitationStatus =
   | "failed";
 
 export default function UsersPage() {
+  const { user: clerkUser } = useUser();
   const data = useQuery(api.users.listUsers);
   const invitations = useQuery(api.invitations.listInvitations);
 
@@ -34,6 +36,14 @@ export default function UsersPage() {
 
   const users = data?.users ?? [];
   const invitationList = invitations ?? [];
+  const getDisplayEmail = (user: (typeof users)[number]) => {
+    const storedEmail = user.email?.trim() ?? "";
+    const isTemplateValue = /^\\{\\{.*\\}\\}$/.test(storedEmail);
+    if (user.isCurrentUser && isTemplateValue) {
+      return clerkUser?.primaryEmailAddress?.emailAddress ?? "جارٍ تحميل البريد الإلكتروني";
+    }
+    return storedEmail || "—";
+  };
 
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLocaleLowerCase();
@@ -41,7 +51,7 @@ export default function UsersPage() {
     return users.filter((user) => {
       const matchesSearch =
         user.fullName.toLocaleLowerCase().includes(term) ||
-        user.email.toLocaleLowerCase().includes(term);
+        getDisplayEmail(user).toLocaleLowerCase().includes(term);
 
       const matchesStatus =
         statusFilter === "all" || user.status === statusFilter;
@@ -450,7 +460,7 @@ export default function UsersPage() {
                     </td>
 
                     <td className="px-4 py-4 text-slate-300">
-                      {user.email}
+                      {getDisplayEmail(user)}
                     </td>
 
                     <td className="px-4 py-4">
