@@ -16,6 +16,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      CI: true
     defaults:
       run:
         working-directory: demix-clerk-mcp
