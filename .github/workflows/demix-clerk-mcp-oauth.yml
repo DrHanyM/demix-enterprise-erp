@@ -1,0 +1,54 @@
+name: DeMix Clerk MCP OAuth Tests
+
+on:
+  push:
+    branches:
+      - feature/clerk-oauth-mcp
+    paths:
+      - "demix-clerk-mcp/**"
+      - ".github/workflows/demix-clerk-mcp-oauth.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demix-clerk-mcp
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/clerk-oauth-mcp
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: demix-clerk-mcp/package-lock.json
+
+      - name: Regenerate lockfile from declared dependencies
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Install exactly from lockfile
+        run: npm ci
+
+      - name: Run OAuth and metadata tests
+        run: npm test
+
+      - name: Commit regenerated lockfile when changed
+        working-directory: .
+        run: |
+          if ! git diff --quiet -- demix-clerk-mcp/package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add demix-clerk-mcp/package-lock.json
+            git commit -m "chore: regenerate DeMix Clerk MCP lockfile"
+            git push origin HEAD:feature/clerk-oauth-mcp
+          fi
