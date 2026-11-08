@@ -73,3 +73,24 @@ npm test
 - خادم `server.mjs` الحالي خادم Node محلي، وليس Vercel Serverless Function. نشر مشروع ERP على Vercel لا يعني نشر هذا الخادم تلقائيًا.
 - لا تعطل حماية SSO في Vercel لمجرد إتاحة MCP، ولا تستخدم Vercel bypass secret كوسيلة مصادقة.
 - لا تستخدم Production keys أثناء الاختبار المحلي.
+
+
+## النشر على Vercel عبر HTTPS
+
+أضيف إلى المشروع محول Vercel Serverless داخل `api/[...path].mjs` مع قواعد إعادة توجيه تحافظ على المسارات العامة التالية:
+
+- `/mcp` — نقطة اتصال MCP عبر Streamable HTTP.
+- `/.well-known/oauth-protected-resource/mcp` — بيانات اكتشاف مورد OAuth.
+- `/.well-known/oauth-authorization-server` — بيانات خادم التفويض.
+- `/health` — فحص الصحة.
+
+يمكن إنشاء مشروع Vercel مستقل لهذا المجلد فقط، مع تعيين Root Directory إلى `demix-clerk-mcp`. يجب أن يظل مشروع ERP الأصلي وحماية SSO فيه دون تغيير. لا تستخدم عنوان Preview محميًا بـ SSO كعنوان MCP عام.
+
+أضف متغيرات البيئة في مشروع خدمة MCP الجديد فقط، دون وضعها في GitHub:
+
+- `CLERK_SECRET_KEY` — مفتاح Clerk Development Secret Key لنفس الـ instance.
+- `CLERK_PUBLISHABLE_KEY` — Publishable Key المقابل.
+- `DEMIX_ADMIN_USER_ID` — معرف المسؤول المعتمد.
+- `MCP_RESOURCE_URL` — العنوان النهائي المطابق تمامًا، مثل `https://YOUR-MCP-DOMAIN/mcp`.
+
+بعد إنشاء عنوان Vercel النهائي، سجّل عنوان المورد نفسه في Clerk OAuth، ثم أعد فحص metadata واختبر OAuth من عميل خارجي. لا يعتبر نجاح البناء أو نشر Preview إثباتًا لاكتمال OAuth؛ يجب إتمام تسجيل الدخول والموافقة وإصدار access token حقيقي ثم استدعاء أداة MCP والتحقق من رفض أي مستخدم غير المسؤول.
