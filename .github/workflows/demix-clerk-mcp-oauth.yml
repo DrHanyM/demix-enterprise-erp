@@ -8,6 +8,9 @@ on:
       - "demix-clerk-mcp/**"
       - ".github/workflows/demix-clerk-mcp-oauth.yml"
   workflow_dispatch:
+  pull_request:
+    branches:
+      - preview
 
 permissions:
   contents: write
@@ -39,7 +42,10 @@ jobs:
       - name: Install exactly from lockfile
         run: npm ci
 
-      - name: Run OAuth and metadata tests
+      - name: Check server syntax
+        run: node --check server.mjs
+
+      - name: Run OAuth, metadata, and HTTP smoke tests
         run: npm test
 
       - name: Commit regenerated lockfile when changed
