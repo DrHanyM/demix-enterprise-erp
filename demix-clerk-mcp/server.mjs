@@ -1,5 +1,6 @@
 import http from "node:http";
 import { createClerkClient } from "@clerk/backend";
+import { createAdminAuthenticator } from "./auth.mjs";
 import {
   verifyClerkToken,
   generateClerkProtectedResourceMetadata,
@@ -39,31 +40,12 @@ const clerkClient = createClerkClient({
   publishableKey: CLERK_PUBLISHABLE_KEY,
 });
 
-async function verifyMcpRequest(req) {
-  const authorization = req.headers.authorization || "";
-  if (!authorization.startsWith("Bearer ") || authorization.length <= 7) return { status: 401 };
-
-  try {
-    const clerkRequest = new Request(MCP_RESOURCE_URL, {
-      method: "GET",
-      headers: { authorization },
-    });
-    const requestState = await clerkClient.authenticateRequest(clerkRequest, {
-      acceptsToken: "oauth_token",
-      audience: MCP_RESOURCE_URL,
-    });
-    if (!requestState.isAuthenticated) return { status: 401 };
-
-    const authInfo = verifyClerkToken(requestState.toAuth(), requestState.token);
-    const userId = authInfo?.extra?.userId;
-    if (authInfo?.extra?.verifiedBy !== "clerk" || typeof userId !== "string" || !userId) return { status: 401 };
-    if (userId !== DEMIX_ADMIN_USER_ID) return { status: 403 };
-    return { status: 200, authInfo };
-  } catch (error) {
-    console.error("Clerk OAuth verification failed:", error?.message || "unknown error");
-    return { status: 401 };
-  }
-}
+const authenticateAdminRequest = createAdminAuthenticator({
+  clerkClient,
+  resourceUrl: MCP_RESOURCE_URL,
+  adminUserId: DEMIX_ADMIN_USER_ID,
+  verifyToken: verifyClerkToken,
+});
 
 function sendJson(res, status, body, extraHeaders = {}) {
   res.writeHead(status, {
@@ -281,7 +263,7 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
-  const authResult = await verifyMcpRequest(req);
+  const authResult = await authenticateAdminRequest(req);
   if (authResult.status === 401) {
     return sendJson(res, 401, { error: "invalid_token" }, {
       "www-authenticate": `Bearer resource_metadata="${RESOURCE_METADATA_URL}"`,
