@@ -1,4 +1,6 @@
 import http from "node:http";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { createClerkClient } from "@clerk/backend";
 import { createAdminAuthenticator } from "./auth.mjs";
 import {
@@ -215,16 +217,17 @@ function createMcpServer() {
   return server;
 }
 
-const httpServer = http.createServer(async (req, res) => {
+export async function handleRequest(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+  const pathname = url.pathname.replace(/^\/api(?=\/)/, "");
 
-  if (url.pathname === "/health" && req.method === "GET") {
+  if (pathname === "/health" && req.method === "GET") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ status: "ok", service: "demix-clerk-mcp", mode: "read-only" }));
     return;
   }
 
-  if (url.pathname === "/.well-known/oauth-protected-resource/mcp" || url.pathname === "/.well-known/oauth-protected-resource") {
+  if (pathname === "/.well-known/oauth-protected-resource/mcp" || pathname === "/.well-known/oauth-protected-resource") {
     if (req.method === "OPTIONS") return sendMetadata(res, {});
     if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" }, { Allow: "GET, OPTIONS" });
     try {
@@ -239,7 +242,7 @@ const httpServer = http.createServer(async (req, res) => {
     }
   }
 
-  if (url.pathname === "/.well-known/oauth-authorization-server") {
+  if (pathname === "/.well-known/oauth-authorization-server") {
     if (req.method === "OPTIONS") return sendMetadata(res, {});
     if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" }, { Allow: "GET, OPTIONS" });
     try {
@@ -251,7 +254,7 @@ const httpServer = http.createServer(async (req, res) => {
     }
   }
 
-  if (url.pathname !== "/mcp") {
+  if (pathname !== "/mcp") {
     res.writeHead(404);
     res.end("Not found");
     return;
@@ -294,9 +297,13 @@ const httpServer = http.createServer(async (req, res) => {
       server.close().catch(() => {});
     });
   }
-});
+}
 
-httpServer.listen(PORT, "127.0.0.1", () => {
-  console.log(`DeMix Clerk MCP listening on http://127.0.0.1:${PORT}`);
-  console.log("Clerk OAuth enabled. Admin allowlist enforced. Read-only tools only.");
-});
+const httpServer = http.createServer(handleRequest);
+const isDirectExecution = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectExecution) {
+  httpServer.listen(PORT, "127.0.0.1", () => {
+    console.log(`DeMix Clerk MCP listening on http://127.0.0.1:${PORT}`);
+    console.log("Clerk OAuth enabled. Admin allowlist enforced. Read-only tools only.");
+  });
+}
