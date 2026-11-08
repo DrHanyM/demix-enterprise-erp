@@ -299,6 +299,10 @@ export async function handleRequest(req, res) {
   }
 }
 
+// Vercel's Node framework treats this file as the server entrypoint.
+// Export the request handler explicitly for its serverless runtime.
+export default handleRequest;
+
 const httpServer = http.createServer(handleRequest);
 const isDirectExecution = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isDirectExecution) {
