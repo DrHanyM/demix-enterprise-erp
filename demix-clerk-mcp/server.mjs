@@ -1,27 +1,86 @@
 import http from "node:http";
-import crypto from "node:crypto";
+import { createClerkClient } from "@clerk/backend";
+import {
+  verifyClerkToken,
+  generateClerkProtectedResourceMetadata,
+  fetchClerkAuthorizationServerMetadata,
+} from "@clerk/mcp-tools/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 
 const PORT = Number(process.env.PORT || 8787);
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
-const MCP_ACCESS_TOKEN = process.env.MCP_ACCESS_TOKEN;
+const CLERK_PUBLISHABLE_KEY = process.env.CLERK_PUBLISHABLE_KEY;
+const MCP_RESOURCE_URL = process.env.MCP_RESOURCE_URL || "http://localhost:8787/mcp";
+const RESOURCE_METADATA_URL = new URL("/.well-known/oauth-protected-resource/mcp", MCP_RESOURCE_URL).href;
+const ADMIN_USER_IDS = new Set((process.env.DEMIX_ADMIN_USER_IDS || "").split(",").map(v => v.trim()).filter(Boolean));
 const CLERK_API_BASE = "https://api.clerk.com/v1";
 
 if (!CLERK_SECRET_KEY || !CLERK_SECRET_KEY.startsWith("sk_")) {
   console.error("Missing/invalid CLERK_SECRET_KEY. Set it in your local environment.");
   process.exit(1);
 }
-if (!MCP_ACCESS_TOKEN || MCP_ACCESS_TOKEN.length < 32) {
-  console.error("Set MCP_ACCESS_TOKEN to a random value of at least 32 characters.");
+if (!CLERK_PUBLISHABLE_KEY || !CLERK_PUBLISHABLE_KEY.startsWith("pk_")) {
+  console.error("Missing/invalid CLERK_PUBLISHABLE_KEY. Set it in your local environment.");
+  process.exit(1);
+}
+if (ADMIN_USER_IDS.size === 0) {
+  console.error("DEMIX_ADMIN_USER_IDS is required. Add the approved Clerk admin user ID locally.");
+  process.exit(1);
+}
+if (new URL(MCP_RESOURCE_URL).pathname !== "/mcp") {
+  console.error("MCP_RESOURCE_URL must identify the exact /mcp endpoint.");
   process.exit(1);
 }
 
-function safeEqual(a, b) {
-  const aa = Buffer.from(a || "");
-  const bb = Buffer.from(b || "");
-  return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
+const clerkClient = createClerkClient({
+  secretKey: CLERK_SECRET_KEY,
+  publishableKey: CLERK_PUBLISHABLE_KEY,
+});
+
+async function verifyMcpRequest(req) {
+  const authorization = req.headers.authorization || "";
+  if (!authorization.startsWith("Bearer ") || authorization.length <= 7) return { status: 401 };
+
+  try {
+    const clerkRequest = new Request(MCP_RESOURCE_URL, {
+      method: "GET",
+      headers: { authorization },
+    });
+    const requestState = await clerkClient.authenticateRequest(clerkRequest, {
+      acceptsToken: "oauth_token",
+      audience: MCP_RESOURCE_URL,
+    });
+    if (!requestState.isAuthenticated) return { status: 401 };
+
+    const authInfo = verifyClerkToken(requestState.toAuth(), requestState.token);
+    const userId = authInfo?.extra?.userId;
+    if (typeof userId !== "string" || !userId) return { status: 401 };
+    if (!ADMIN_USER_IDS.has(userId)) return { status: 403 };
+    return { status: 200, authInfo };
+  } catch (error) {
+    console.error("Clerk OAuth verification failed:", error?.message || "unknown error");
+    return { status: 401 };
+  }
+}
+
+function sendJson(res, status, body, extraHeaders = {}) {
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    ...extraHeaders,
+  });
+  res.end(JSON.stringify(body));
+}
+
+function sendMetadata(res, body) {
+  sendJson(res, 200, body, {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, OPTIONS",
+    "access-control-allow-headers": "*",
+    "access-control-max-age": "86400",
+  });
 }
 
 async function clerk(path, params = {}) {
@@ -183,17 +242,36 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/.well-known/oauth-protected-resource/mcp" || url.pathname === "/.well-known/oauth-protected-resource") {
+    if (req.method === "OPTIONS") return sendMetadata(res, {});
+    if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" }, { Allow: "GET, OPTIONS" });
+    try {
+      const metadata = generateClerkProtectedResourceMetadata({
+        publishableKey: CLERK_PUBLISHABLE_KEY,
+        resourceUrl: MCP_RESOURCE_URL,
+      });
+      return sendMetadata(res, metadata);
+    } catch (error) {
+      console.error("Protected resource metadata failed:", error?.message || "unknown error");
+      return sendJson(res, 500, { error: "metadata_unavailable" });
+    }
+  }
+
+  if (url.pathname === "/.well-known/oauth-authorization-server") {
+    if (req.method === "OPTIONS") return sendMetadata(res, {});
+    if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" }, { Allow: "GET, OPTIONS" });
+    try {
+      const metadata = await fetchClerkAuthorizationServerMetadata({ publishableKey: CLERK_PUBLISHABLE_KEY });
+      return sendMetadata(res, metadata);
+    } catch (error) {
+      console.error("Authorization server metadata failed:", error?.message || "unknown error");
+      return sendJson(res, 502, { error: "authorization_metadata_unavailable" });
+    }
+  }
+
   if (url.pathname !== "/mcp") {
     res.writeHead(404);
     res.end("Not found");
-    return;
-  }
-
-  const auth = req.headers.authorization || "";
-  const supplied = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!safeEqual(supplied, MCP_ACCESS_TOKEN)) {
-    res.writeHead(401, { "content-type": "application/json", "www-authenticate": "Bearer" });
-    res.end(JSON.stringify({ error: "Unauthorized" }));
     return;
   }
 
@@ -201,6 +279,16 @@ const httpServer = http.createServer(async (req, res) => {
     res.writeHead(405, { Allow: "POST, GET, DELETE" });
     res.end("Method not allowed");
     return;
+  }
+
+  const authResult = await verifyMcpRequest(req);
+  if (authResult.status === 401) {
+    return sendJson(res, 401, { error: "invalid_token" }, {
+      "www-authenticate": `Bearer resource_metadata="${RESOURCE_METADATA_URL}"`,
+    });
+  }
+  if (authResult.status === 403) {
+    return sendJson(res, 403, { error: "admin_only" });
   }
 
   const transport = new StreamableHTTPServerTransport({
@@ -228,5 +316,5 @@ const httpServer = http.createServer(async (req, res) => {
 
 httpServer.listen(PORT, "127.0.0.1", () => {
   console.log(`DeMix Clerk MCP listening on http://127.0.0.1:${PORT}`);
-  console.log("Read-only tools enabled. No write/delete tools are exposed.");
+  console.log("Clerk OAuth enabled. Admin allowlist enforced. Read-only tools only.");
 });
