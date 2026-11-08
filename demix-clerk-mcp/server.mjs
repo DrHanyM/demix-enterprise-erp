@@ -14,7 +14,7 @@ const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
 const CLERK_PUBLISHABLE_KEY = process.env.CLERK_PUBLISHABLE_KEY;
 const MCP_RESOURCE_URL = process.env.MCP_RESOURCE_URL || "http://localhost:8787/mcp";
 const RESOURCE_METADATA_URL = new URL("/.well-known/oauth-protected-resource/mcp", MCP_RESOURCE_URL).href;
-const ADMIN_USER_IDS = new Set((process.env.DEMIX_ADMIN_USER_IDS || "").split(",").map(v => v.trim()).filter(Boolean));
+const DEMIX_ADMIN_USER_ID = process.env.DEMIX_ADMIN_USER_ID || "";
 const CLERK_API_BASE = "https://api.clerk.com/v1";
 
 if (!CLERK_SECRET_KEY || !CLERK_SECRET_KEY.startsWith("sk_")) {
@@ -25,8 +25,8 @@ if (!CLERK_PUBLISHABLE_KEY || !CLERK_PUBLISHABLE_KEY.startsWith("pk_")) {
   console.error("Missing/invalid CLERK_PUBLISHABLE_KEY. Set it in your local environment.");
   process.exit(1);
 }
-if (ADMIN_USER_IDS.size === 0) {
-  console.error("DEMIX_ADMIN_USER_IDS is required. Add the approved Clerk admin user ID locally.");
+if (!DEMIX_ADMIN_USER_ID.startsWith("user_")) {
+  console.error("DEMIX_ADMIN_USER_ID is required. Add the approved Clerk admin user ID locally.");
   process.exit(1);
 }
 if (new URL(MCP_RESOURCE_URL).pathname !== "/mcp") {
@@ -56,8 +56,8 @@ async function verifyMcpRequest(req) {
 
     const authInfo = verifyClerkToken(requestState.toAuth(), requestState.token);
     const userId = authInfo?.extra?.userId;
-    if (typeof userId !== "string" || !userId) return { status: 401 };
-    if (!ADMIN_USER_IDS.has(userId)) return { status: 403 };
+    if (authInfo?.extra?.verifiedBy !== "clerk" || typeof userId !== "string" || !userId) return { status: 401 };
+    if (userId !== DEMIX_ADMIN_USER_ID) return { status: 403 };
     return { status: 200, authInfo };
   } catch (error) {
     console.error("Clerk OAuth verification failed:", error?.message || "unknown error");
