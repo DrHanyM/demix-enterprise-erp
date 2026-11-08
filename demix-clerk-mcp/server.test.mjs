@@ -51,6 +51,13 @@ test("HTTP server starts and protects the real MCP route without modifying previ
     assert.equal(metadataBody.resource, resourceUrl);
     assert.deepEqual(metadataBody.authorization_servers, ["https://glorious-husky-5726.clerk.accounts.dev"]);
 
+    const authorizationMetadata = await fetch(`${BASE}/.well-known/oauth-authorization-server`);
+    assert.equal(authorizationMetadata.status, 200);
+    const authorizationMetadataBody = await authorizationMetadata.json();
+    assert.equal(authorizationMetadataBody.issuer, "https://glorious-husky-5726.clerk.accounts.dev");
+    assert.ok(authorizationMetadataBody.authorization_endpoint?.includes("/oauth/authorize"));
+    assert.ok(authorizationMetadataBody.token_endpoint?.includes("/oauth/token"));
+
     const missingToken = await fetch(`${BASE}/mcp`);
     assert.equal(missingToken.status, 401);
     assert.match(missingToken.headers.get("www-authenticate") || "", /oauth-protected-resource/);
