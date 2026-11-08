@@ -14,7 +14,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       CI: true
@@ -23,13 +23,13 @@ jobs:
         working-directory: demix-clerk-mcp
     steps:
       - name: Checkout feature branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: feature/clerk-oauth-mcp
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
