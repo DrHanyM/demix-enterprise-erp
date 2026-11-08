@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node --env-file=.env server.mjs"
+    "start": "node --env-file=.env server.mjs",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=20"
@@ -13,6 +14,6 @@
     "@modelcontextprotocol/sdk": "^1.25.2",
     "zod": "^4.6.7",
     "@clerk/backend": "^3.27.0",
-    "@clerk/mcp-tools": "^0.8.0"
+    "@clerk/mcp-tools": "^0.6.0"
   }
 }
