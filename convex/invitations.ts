@@ -451,46 +451,58 @@ export const acceptInvitationFromClerk = internalMutation({
 
     const matchingInvitations = emailInvitations.filter(
       (item) =>
-        item.status === "invited" &&
+        (item.status === "invited" || item.status === "accepted") &&
         typeof item.clerkInvitationId === "string" &&
         item.clerkInvitationId.length > 0
     );
 
     const eligibleInvitations = matchingInvitations.filter(
-      (item) => !item.expiresAt || item.expiresAt > now
+      (item) =>
+        item.status === "invited" &&
+        (!item.expiresAt || item.expiresAt > now)
+    );
+
+    const acceptedInvitations = matchingInvitations.filter(
+      (item) => item.status === "accepted"
     );
 
     if (eligibleInvitations.length > 1) {
       throw new Error("AMBIGUOUS_ACTIVE_INVITATIONS");
     }
 
-    if (eligibleInvitations.length === 0) {
-      if (matchingInvitations.length > 0) {
-        for (const expired of matchingInvitations) {
+    let invitation;
+
+    if (eligibleInvitations.length === 1) {
+      invitation = eligibleInvitations[0];
+    } else if (acceptedInvitations.length === 1) {
+      invitation = acceptedInvitations[0];
+    } else if (acceptedInvitations.length > 1) {
+      throw new Error("AMBIGUOUS_ACCEPTED_INVITATIONS");
+    } else if (matchingInvitations.length > 0) {
+      for (const expired of matchingInvitations) {
+        if (expired.status === "invited") {
           await ctx.db.patch(expired._id, {
             status: "expired",
             updatedAt: now,
           });
         }
-
-        await ctx.db.insert("webhookEvents", {
-          eventId,
-          eventType: args.eventType,
-          processedAt: now,
-          createdAt: now,
-        });
-
-        return {
-          success: false,
-          duplicate: false,
-          status: "invitation_expired" as const,
-        };
       }
 
+      await ctx.db.insert("webhookEvents", {
+        eventId,
+        eventType: args.eventType,
+        processedAt: now,
+        createdAt: now,
+      });
+
+      return {
+        success: false,
+        duplicate: false,
+        status: "invitation_expired" as const,
+      };
+    } else {
       throw new Error("NO_MATCHING_ACTIVE_ERP_INVITATION");
     }
-
-    const invitation = eligibleInvitations[0];
 
     // Idempotent acceptance for the same Clerk account.
     if (invitation.status === "accepted") {
