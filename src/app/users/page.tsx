@@ -1,4 +1,4 @@
-﻿
+
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -25,6 +25,8 @@ export default function UsersPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
+  const accessDetails = useQuery(api.users.getUserAccessDetails, selectedUserId ? { userId: selectedUserId } : "skip");
 
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -475,6 +477,7 @@ export default function UsersPage() {
                   <th className="px-4 py-4">الحالة</th>
                   <th className="px-4 py-4">تاريخ الإنشاء</th>
                   <th className="px-4 py-4">آخر تحديث</th>
+                  <th className="px-4 py-4">تفاصيل الوصول</th>
                 </tr>
               </thead>
 
@@ -510,13 +513,18 @@ export default function UsersPage() {
                     <td className="px-4 py-4 text-slate-300">
                       {formatDate(user.updatedAt)}
                     </td>
+                    <td className="px-4 py-4">
+                      <button type="button" onClick={() => setSelectedUserId(selectedUserId === user.id ? null : user.id)} aria-expanded={selectedUserId === user.id} className="rounded-lg border border-blue-700 px-3 py-2 text-xs font-semibold text-blue-300 hover:bg-blue-950">
+                        {selectedUserId === user.id ? "إخفاء التفاصيل" : "عرض الدور والصلاحيات"}
+                      </button>
+                    </td>
                   </tr>
                 ))}
 
                 {filteredUsers.length === 0 && (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="px-4 py-10 text-center text-slate-400"
                     >
                       لا توجد حسابات مطابقة لعملية البحث.
@@ -525,7 +533,75 @@ export default function UsersPage() {
                 )}
               </tbody>
             </table>
+
           </div>
+
+          {selectedUserId && (
+            <section className="mt-6 rounded-xl border border-blue-800/70 bg-slate-950 p-5" aria-live="polite">
+              {accessDetails === undefined ? (
+                <p className="text-sm text-slate-300">جارٍ تحميل تفاصيل الدور والصلاحيات الفعلية...</p>
+              ) : (
+                <>
+                  <h3 className="text-lg font-bold">تفاصيل الوصول والصلاحيات</h3>
+                  <p className="mt-1 text-sm text-slate-400">{accessDetails.user.fullName} — <span dir="ltr">{accessDetails.user.email}</span></p>
+                  <div className="mt-5 space-y-5">
+                    <div>
+                      <h4 className="mb-3 font-semibold text-blue-300">الأدوار والصلاحيات على مستوى المحطات</h4>
+                      {accessDetails.stationAssignments.length === 0 ? <p className="text-sm text-amber-300">لا توجد تعيينات محطات مسجلة.</p> : (
+                        <div className="grid gap-3 lg:grid-cols-2">
+                          {accessDetails.stationAssignments.map((assignment, index) => (
+                            <article key={index} className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+                              <p className="font-semibold">{assignment.station?.name ?? "محطة غير معروفة"} ({assignment.station?.code ?? "—"})</p>
+                              <p className="mt-2 text-sm">حالة التعيين: {assignment.assignmentStatus === "active" ? "نشط" : "غير نشط"}</p>
+                              <p className="mt-1 text-sm">الدور: {assignment.role?.name ?? "غير محدد"}</p>
+                              <p className="mt-1 text-xs text-slate-500" dir="ltr">{assignment.role?.code ?? "NO_ROLE"}</p>
+                              <p className="mt-3 text-xs font-semibold text-slate-400">الصلاحيات المرتبطة بالدور:</p>
+                              {assignment.permissions.length ? (
+                                <ul className="mt-2 space-y-1">
+                                  {assignment.permissions.map((permission) => <li key={permission.code} className="text-xs text-emerald-300" dir="ltr">{permission.code}</li>)}
+                                </ul>
+                              ) : <p className="mt-2 text-xs text-amber-300">لا توجد صلاحيات مرتبطة.</p>}
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="mb-3 font-semibold text-blue-300">الأدوار والصلاحيات المركزية</h4>
+                      {accessDetails.centralAssignments.length === 0 ? <p className="text-sm text-slate-400">لا توجد أدوار مركزية.</p> : accessDetails.centralAssignments.map((assignment, index) => (
+                        <article key={index} className="mb-2 rounded-lg border border-slate-800 bg-slate-900 p-4">
+                          <p className="font-semibold">{assignment.role?.name ?? "دور غير معروف"} ({assignment.role?.code ?? "—"})</p>
+                          <p className="mt-1 text-xs text-slate-400">حالة التعيين: {assignment.assignmentStatus === "active" ? "نشط" : "غير نشط"}</p>
+                          <ul className="mt-2 space-y-1">{assignment.permissions.map((permission) => <li key={permission.code} className="text-xs" dir="ltr">{permission.code}</li>)}</ul>
+                        </article>
+                      ))}
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+                      <h4 className="font-semibold">فحص صلاحيات الإنتاج</h4>
+                      {(() => {
+                        const activeCodes = accessDetails.stationAssignments
+                          .filter((a) => a.assignmentStatus === "active" && a.station?.status === "active" && a.role?.status === "active")
+                          .flatMap((a) => a.permissions.map((permission) => permission.code));
+                        const uniqueCodes = [...new Set(activeCodes)];
+                        const required = ["production.records.read", "production.records.create", "production.records.update"];
+                        const missing = required.filter((code) => !uniqueCodes.includes(code));
+                        const extra = uniqueCodes.filter((code) => !required.includes(code));
+                        const hasDelete = uniqueCodes.includes("production.records.delete");
+                        return (
+                          <div className="mt-2 space-y-2 text-sm">
+                            <p className={missing.length === 0 && extra.length === 0 ? "text-emerald-300" : "text-amber-300"}>{missing.length === 0 && extra.length === 0 ? "الصلاحيات الثلاث المطلوبة موجودة دون صلاحيات إنتاج إضافية." : "الصلاحيات الفعلية لا تطابق المجموعة المطلوبة بالكامل."}</p>
+                            <p>حذف سجلات الإنتاج: <span className={hasDelete ? "text-red-300" : "text-emerald-300"}>{hasDelete ? "موجود" : "غير موجود ضمن أدوار المحطات النشطة"}</span></p>
+                            {missing.length > 0 && <p className="text-amber-300">صلاحيات ناقصة: {missing.join("، ")}</p>}
+                            {extra.length > 0 && <p className="text-amber-300">صلاحيات إضافية: {extra.join("، ")}</p>}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
         </section>
 
         <p className="text-xs text-slate-500">
