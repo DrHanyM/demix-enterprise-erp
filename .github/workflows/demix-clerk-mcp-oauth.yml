@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/clerk-oauth-mcp
+      - cimd/clerk-inspector-metadata
     paths:
       - "demix-clerk-mcp/**"
       - ".github/workflows/demix-clerk-mcp-oauth.yml"
