@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/clerk-oauth-mcp
+      - cimd/clerk-inspector-metadata
     paths:
       - "demix-clerk-mcp/**"
       - ".github/workflows/demix-clerk-mcp-oauth.yml"
@@ -11,6 +12,7 @@ on:
   pull_request:
     branches:
       - preview
+      - feature/clerk-oauth-mcp
 
 jobs:
   test:
@@ -22,10 +24,9 @@ jobs:
       run:
         working-directory: demix-clerk-mcp
     steps:
-      - name: Checkout feature branch
+      - name: Checkout pull request revision
         uses: actions/checkout@v7
         with:
-          ref: feature/clerk-oauth-mcp
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Node.js
