@@ -131,12 +131,9 @@ export default function ProductionPage() {
             <h1 className="mt-2 text-3xl font-bold">التشغيل والإنتاج</h1>
             <p className="mt-2 text-sm text-slate-400">إدخال وتعديل سجلات الإنتاج في المحطات المصرح بها فقط.</p>
           </div>
-          <button type="button" onClick={() => {
-            if (window.history.length > 1) router.back();
-            else router.push("/");
-          }} className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-5 py-3 font-semibold text-white transition hover:border-blue-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="العودة إلى الصفحة السابقة">
+          <button type="button" onClick={() => router.push("/")} className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-5 py-3 font-semibold text-white transition hover:border-blue-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="العودة إلى الصفحة الرئيسية">
             <span aria-hidden="true">→</span>
-            العودة للصفحة السابقة
+            العودة للصفحة الرئيسية
           </button>
         </header>
 
