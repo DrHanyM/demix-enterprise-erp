@@ -186,7 +186,7 @@ export default async function Home() {
                 </div>
                 <div className="space-y-1">
                   {group.items.map((item) => (
-                    {item.href ? (
+                    item.href ? (
                       <a
                         key={item.label}
                         href={item.href}
@@ -211,7 +211,7 @@ export default async function Home() {
                         <span>{item.label}</span>
                         <span className="mr-auto text-[9px] text-slate-500">قريباً</span>
                       </div>
-                    )}
+                    )
                   ))}
                 </div>
               </div>
