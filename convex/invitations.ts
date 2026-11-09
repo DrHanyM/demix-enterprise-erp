@@ -606,19 +606,10 @@ export const acceptInvitationFromClerk = internalMutation({
         throw new Error("INVITATION_ALREADY_ACCEPTED_BY_ANOTHER_USER");
       }
 
-      await ctx.db.insert("webhookEvents", {
-        eventId,
-        eventType: args.eventType,
-        processedAt: now,
-        createdAt: now,
-      });
-
-      return {
-        success: true,
-        duplicate: false,
-        status: "already_accepted" as const,
-        userId: acceptedUser._id,
-      };
+      // Do not stop at an accepted invitation if station provisioning is
+      // incomplete. Re-run the idempotent assignment checks below so missing
+      // role/station links and audit records can be repaired on a later event.
+      invitation = { ...invitation, status: "invited" as const };
     }
 
     if (invitation.status !== "invited") {
