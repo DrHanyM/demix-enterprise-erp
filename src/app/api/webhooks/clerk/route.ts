@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Resolve the primary email address. Convex matches it to a pending ERP invitation.
- const emailAddresses = data.email_addresses ?? [];
+  const emailAddresses = data.email_addresses ?? [];
 
   const primaryEmail = emailAddresses.find(
     (item) => item.id === data.primary_email_address_id
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   const emailVerified =
     primaryEmail.verification?.status === "verified";
 
-  // 5. Read the trusted relay configuration.
+  // 4. Read the trusted relay configuration.
   const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
   const sharedSecret = process.env.DEMIX_WEBHOOK_SECRET;
   const eventId = request.headers.get("svix-id");
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 6. Relay the verified event to Convex.
+  // 5. Relay the verified event to Convex.
   try {
     const response = await fetch(
       `${convexSiteUrl.replace(/\/$/, "")}/clerk-user-webhook`,
