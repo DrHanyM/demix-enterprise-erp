@@ -2,7 +2,6 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 
 const http = httpRouter();
 
@@ -42,7 +41,6 @@ http.route({
       typeof payload.eventId !== "string" ||
       typeof payload.eventType !== "string" ||
       typeof payload.clerkUserId !== "string" ||
-      typeof payload.invitationId !== "string" ||
       typeof payload.email !== "string" ||
       typeof payload.emailVerified !== "boolean"
     ) {
@@ -56,7 +54,6 @@ http.route({
           eventId: payload.eventId,
           eventType: payload.eventType,
           clerkUserId: payload.clerkUserId,
-          invitationId: payload.invitationId as Id<"invitations">,
           email: payload.email,
           emailVerified: payload.emailVerified,
         }
