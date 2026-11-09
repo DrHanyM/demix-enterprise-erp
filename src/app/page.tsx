@@ -141,7 +141,6 @@ export default async function Home() {
   await auth.protect();
   const user = await currentUser();
   const accountName = user?.fullName || [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.primaryEmailAddress?.emailAddress || "مستخدم النظام";
-  const accountEmail = user?.primaryEmailAddress?.emailAddress || "";
 
   return (
     <main
@@ -232,9 +231,6 @@ export default async function Home() {
               </div>
               <div>
                 <div className="text-xs font-bold">{accountName}</div>
-                <div className="mt-1 text-[10px] text-slate-400" dir="ltr">
-                  {accountEmail}
-                </div>
               </div>
             </div>
           </div>
@@ -264,7 +260,7 @@ export default async function Home() {
                 <span className="text-slate-400">⌄</span>
               </div>
 
-              <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[10px] font-semibold text-blue-800" title={accountEmail}>
+              <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[10px] font-semibold text-blue-800">
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-200 text-[9px] font-bold">{accountName.trim().charAt(0)}</span>
                 <span>الحساب الحالي: {accountName}</span>
               </div>
