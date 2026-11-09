@@ -657,30 +657,44 @@ export const acceptInvitationFromClerk = internalMutation({
       throw new Error("DUPLICATE_CLERK_IDENTITY");
     }
 
-    if (usersBySubject.length === 1) {
-      throw new Error("CLERK_IDENTITY_ALREADY_REGISTERED");
-    }
-
-    // Prevent another account from using the invited email.
+    // A user record may already have been created by an earlier sign-in
+    // synchronization before invitation provisioning completed. Reuse that
+    // exact Clerk identity so a verified webhook retry can finish setup.
     const usersByEmail = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", email))
       .take(2);
 
-    if (usersByEmail.length > 0) {
-      throw new Error("INVITATION_EMAIL_ALREADY_REGISTERED");
+    if (usersByEmail.length > 1) {
+      throw new Error("DUPLICATE_INVITATION_EMAIL_USERS");
     }
 
-    // Create the active user only after all checks pass.
-    const userId = await ctx.db.insert("users", {
-      authSubject: clerkUserId,
-      email,
-      fullName: invitation.fullName,
-      status: "active",
-      createdAt: now,
-      updatedAt: now,
-      createdBy: "CLERK_WEBHOOK",
-    });
+    let userId;
+    if (usersBySubject.length === 1) {
+      const existingUser = usersBySubject[0];
+      if (existingUser.email.toLowerCase() !== email) {
+        throw new Error("CLERK_IDENTITY_EMAIL_MISMATCH");
+      }
+      if (existingUser.status !== "active") {
+        throw new Error("EXISTING_CLERK_USER_NOT_ACTIVE");
+      }
+      userId = existingUser._id;
+    } else {
+      if (usersByEmail.length > 0) {
+        throw new Error("INVITATION_EMAIL_ALREADY_REGISTERED");
+      }
+
+      // Create the active user only after all checks pass.
+      userId = await ctx.db.insert("users", {
+        authSubject: clerkUserId,
+        email,
+        fullName: invitation.fullName,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+        createdBy: "CLERK_WEBHOOK",
+      });
+    }
 
     // Apply the invitation's approved station-scoped role atomically with account activation.
     if (!invitation.roleId || !invitation.stationIds?.length) {
