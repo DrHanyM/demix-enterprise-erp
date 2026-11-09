@@ -175,6 +175,10 @@ export default async function Home() {
           </div>
 
           <nav className="flex-1 space-y-6 overflow-y-auto px-4 pb-6">
+            <a href="/production" className="flex items-center gap-3 rounded-lg bg-teal-400/10 px-3 py-2.5 text-xs font-semibold text-teal-200 hover:bg-teal-400/20">
+              <span className="w-5 text-center text-base">▦</span>
+              التشغيل والإنتاج
+            </a>
             {menuGroups.map((group) => (
               <div key={group.title}>
                 <div className="mb-2 px-3 text-[10px] font-bold text-slate-400">
