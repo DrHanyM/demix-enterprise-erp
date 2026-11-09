@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
 
@@ -15,10 +15,10 @@ const PRODUCTION_PERMISSIONS = [
   ["production.records.update", "Update production records", "production", "update"],
 ] as const;
 
-async function ensureProductionRole(ctx: any) {
+async function ensureProductionRole(ctx: MutationCtx) {
   const now = Date.now();
   let role = await ctx.db.query("roles")
-    .withIndex("by_code", (q: any) => q.eq("code", PRODUCTION_ROLE_CODE))
+    .withIndex("by_code", (q) => q.eq("code", PRODUCTION_ROLE_CODE))
     .unique();
 
   if (!role) {
@@ -40,7 +40,7 @@ async function ensureProductionRole(ctx: any) {
 
   for (const [code, name, module, action] of PRODUCTION_PERMISSIONS) {
     let permission = await ctx.db.query("permissions")
-      .withIndex("by_code", (q: any) => q.eq("code", code))
+      .withIndex("by_code", (q) => q.eq("code", code))
       .unique();
     if (!permission) {
       const permissionId = await ctx.db.insert("permissions", {
@@ -52,7 +52,7 @@ async function ensureProductionRole(ctx: any) {
     }
     if (!permission) throw new Error("PRODUCTION_PERMISSION_CONFIGURATION_INVALID");
     const link = await ctx.db.query("rolePermissions")
-      .withIndex("by_role_permission", (q: any) =>
+      .withIndex("by_role_permission", (q) =>
         q.eq("roleId", role._id).eq("permissionId", permission._id))
       .unique();
     if (!link) {
@@ -62,6 +62,13 @@ async function ensureProductionRole(ctx: any) {
         assignedAt: now,
       });
     }
+  }
+  const allRoleLinks = await ctx.db.query("rolePermissions")
+    .withIndex("by_role", (q) => q.eq("roleId", role._id))
+    .collect();
+  const expectedCodes = new Set(PRODUCTION_PERMISSIONS.map(([code]) => code));
+  if (allRoleLinks.length !== expectedCodes.size) {
+    throw new Error("PRODUCTION_ROLE_PERMISSION_SET_INVALID");
   }
   return role;
 }
