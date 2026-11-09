@@ -67,6 +67,15 @@ export const verifyCentralAdmin = query({
       }
     }
 
+    const expectedPermissionCodes = [
+      "audit.view",
+      "system.stations.manage",
+      "system.users.manage",
+    ];
+    const hasExactPermissions =
+      permissionCodes.length === expectedPermissionCodes.length &&
+      expectedPermissionCodes.every((code, index) => permissionCodes[index] === code);
+
     // 5. Verify bootstrap audit record
     const auditLog = await ctx.db
       .query("auditLogs")
@@ -86,7 +95,7 @@ export const verifyCentralAdmin = query({
         adminRole.status === "active" &&
         adminRole.scope === "central" &&
         adminRole.isSystem === true &&
-        permissionCodes.length === 3 &&
+        hasExactPermissions &&
         auditLog !== null,
 
       user: {
