@@ -388,7 +388,6 @@ export const acceptInvitationFromClerk = internalMutation({
     eventId: v.string(),
     eventType: v.string(),
     clerkUserId: v.string(),
-    invitationId: v.id("invitations"),
     email: v.string(),
     emailVerified: v.boolean(),
   },
@@ -441,17 +440,57 @@ export const acceptInvitationFromClerk = internalMutation({
       };
     }
 
-    const invitation = await ctx.db.get(args.invitationId);
-
-    if (!invitation) {
-      throw new Error("INVITATION_NOT_FOUND");
-    }
-
-    if (invitation.email.toLowerCase() !== email) {
-      throw new Error("INVITATION_EMAIL_MISMATCH");
-    }
-
     const now = Date.now();
+
+    // Resolve the ERP invitation using the verified primary email from Clerk.
+    // Do not rely on custom Clerk public metadata being populated on acceptance.
+    const emailInvitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .collect();
+
+    const matchingInvitations = emailInvitations.filter(
+      (item) =>
+        item.status === "invited" &&
+        typeof item.clerkInvitationId === "string" &&
+        item.clerkInvitationId.length > 0
+    );
+
+    const eligibleInvitations = matchingInvitations.filter(
+      (item) => !item.expiresAt || item.expiresAt > now
+    );
+
+    if (eligibleInvitations.length > 1) {
+      throw new Error("AMBIGUOUS_ACTIVE_INVITATIONS");
+    }
+
+    if (eligibleInvitations.length === 0) {
+      if (matchingInvitations.length > 0) {
+        for (const expired of matchingInvitations) {
+          await ctx.db.patch(expired._id, {
+            status: "expired",
+            updatedAt: now,
+          });
+        }
+
+        await ctx.db.insert("webhookEvents", {
+          eventId,
+          eventType: args.eventType,
+          processedAt: now,
+          createdAt: now,
+        });
+
+        return {
+          success: false,
+          duplicate: false,
+          status: "invitation_expired" as const,
+        };
+      }
+
+      throw new Error("NO_MATCHING_ACTIVE_ERP_INVITATION");
+    }
+
+    const invitation = eligibleInvitations[0];
 
     // Idempotent acceptance for the same Clerk account.
     if (invitation.status === "accepted") {
