@@ -255,6 +255,47 @@ export async function handleRequest(req, res) {
     }
   }
 
+  if (pathname === "/.well-known/oauth-client-metadata.json") {
+    if (req.method === "OPTIONS") return sendMetadata(res, {});
+    if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" }, { Allow: "GET, OPTIONS" });
+
+    // Build the CIMD client_id from the public HTTPS host serving this document.
+    // Vercel supplies x-forwarded-proto; Host identifies the requested deployment alias.
+    const protocol = String(req.headers["x-forwarded-proto"] || "https").split(",")[0].trim();
+    const host = String(req.headers.host || "").split(",")[0].trim();
+    if (protocol !== "https" || !host) {
+      return sendJson(res, 400, { error: "https_host_required" });
+    }
+
+    let clientId;
+    try {
+      const metadataUrl = new URL("/.well-known/oauth-client-metadata.json", `https://${host}`);
+      if (metadataUrl.host !== host) throw new Error("Invalid host");
+      clientId = metadataUrl.href;
+    } catch {
+      return sendJson(res, 400, { error: "invalid_host" });
+    }
+
+    return sendJson(res, 200, {
+      client_id: clientId,
+      client_name: "DeMix MCP Inspector",
+      redirect_uris: [
+        "http://127.0.0.1:6274/oauth/callback",
+        "http://localhost:6274/oauth/callback"
+      ],
+      token_endpoint_auth_method: "none",
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      application_type: "native"
+    }, {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "*",
+      "access-control-max-age": "86400",
+      "cache-control": "public, max-age=300"
+    });
+  }
+
   if (pathname !== "/mcp") {
     res.writeHead(404);
     res.end("Not found");
