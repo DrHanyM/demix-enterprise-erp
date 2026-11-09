@@ -1,9 +1,10 @@
 ﻿
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 type InvitationStatus =
   | "inviting"
@@ -16,6 +17,7 @@ type InvitationStatus =
 export default function UsersPage() {
   const data = useQuery(api.users.listUsers);
   const invitations = useQuery(api.invitations.listInvitations);
+  const stations = useQuery(api.stations.listStations);
 
   const createInvitationDraft = useMutation(
     api.invitations.createInvitationDraft
@@ -26,6 +28,7 @@ export default function UsersPage() {
 
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [stationIds, setStationIds] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">(
@@ -34,6 +37,13 @@ export default function UsersPage() {
 
   const users = data?.users ?? [];
   const invitationList = invitations ?? [];
+
+  useEffect(() => {
+    if (stations && stationIds.length === 0) {
+      const defaults = stations.filter((station) => station.name === "أبو رواش" || station.name === "أبو قير").map((station) => station._id);
+      if (defaults.length > 0) setStationIds(defaults);
+    }
+  }, [stations, stationIds.length]);
 
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLocaleLowerCase();
@@ -90,8 +100,8 @@ export default function UsersPage() {
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedName = fullName.trim();
 
-    if (!normalizedName || !normalizedEmail) {
-      showMessage("يرجى إدخال الاسم والبريد الإلكتروني.", "error");
+    if (!normalizedName || !normalizedEmail || stationIds.length === 0) {
+      showMessage("يرجى إدخال الاسم والبريد الإلكتروني واختيار محطة واحدة على الأقل.", "error");
       return;
     }
 
@@ -107,6 +117,7 @@ export default function UsersPage() {
       const draft = await createInvitationDraft({
         email: normalizedEmail,
         fullName: normalizedName,
+        stationIds: stationIds as Id<"stations">[],
         operationId,
       });
 
@@ -266,6 +277,26 @@ export default function UsersPage() {
               </div>
             </div>
 
+
+            <fieldset className="rounded-lg border border-slate-700 p-4">
+              <legend className="px-2 text-sm font-semibold text-slate-200">محطات المستخدم المصرح بها</legend>
+              <p className="mb-3 text-xs text-slate-400">سيُربط دور مشغل الإنتاج بالمحطات المحددة فقط.</p>
+              {stations === undefined ? (
+                <p className="text-sm text-slate-400">جارٍ تحميل المحطات...</p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {stations.filter((station) => station.status === "active").map((station) => (
+                    <label key={station._id} className="flex cursor-pointer items-center gap-3 rounded-lg bg-slate-950 p-3 text-sm">
+                      <input type="checkbox" checked={stationIds.includes(station._id)} disabled={sending}
+                        onChange={(event) => setStationIds((current) => event.target.checked ? [...current, station._id] : current.filter((id) => id !== station._id))}
+                        className="h-4 w-4 accent-blue-500" />
+                      <span>{station.name} <span className="text-xs text-slate-500">({station.code})</span></span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className="mt-3 text-xs text-blue-300">المحدد: {stationIds.length} محطة</p>
+            </fieldset>
             <button
               type="submit"
               disabled={sending}
