@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import LogoutButton from "@/components/LogoutButton";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 type FormState = {
@@ -131,6 +132,7 @@ export default function ProductionPage() {
             <h1 className="mt-2 text-3xl font-bold">التشغيل والإنتاج</h1>
             <p className="mt-2 text-sm text-slate-400">إدخال وتعديل سجلات الإنتاج في المحطات المصرح بها فقط.</p>
           </div>
+          <LogoutButton className="inline-flex items-center gap-2 rounded-lg border border-rose-700 bg-slate-900 px-5 py-3 font-semibold text-rose-200 transition hover:bg-rose-950 focus:outline-none focus:ring-2 focus:ring-rose-500" />
           <button type="button" onClick={() => router.push("/")} className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-5 py-3 font-semibold text-white transition hover:border-blue-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="العودة إلى الصفحة الرئيسية">
             <span aria-hidden="true">→</span>
             العودة للصفحة الرئيسية
