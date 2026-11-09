@@ -61,7 +61,7 @@ export default function AdminConnectionStatus() {
             ? report.message
             : "لم تجتز بيانات المستخدم أو الدور أو سجل التهيئة جميع فحوص الاعتماد."}
         </p>
-        {"user" in report && (
+        {"user" in report && report.user && (
           <div className="mt-3 grid gap-2 text-xs text-amber-900 sm:grid-cols-3">
             <div>المستخدم: {report.user.fullName}</div>
             <div>الدور: {report.role?.code ?? "غير معيّن"}</div>
@@ -74,7 +74,7 @@ export default function AdminConnectionStatus() {
     );
   }
 
-  if (!("user" in report)) {
+  if (!("user" in report) || !report.user) {
     return (
       <section
         dir="rtl"
