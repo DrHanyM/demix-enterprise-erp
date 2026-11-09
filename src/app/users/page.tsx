@@ -377,6 +377,11 @@ export default function UsersPage() {
                       >
                         <td className="px-4 py-4 font-medium">
                           {invitation.fullName}
+                          <p className="mt-1 text-xs font-normal text-slate-400">
+                            {(invitation.stationIds ?? []).map((stationId) =>
+                              stations?.find((station) => station._id === stationId)?.name ?? "محطة غير معروفة"
+                            ).join("، ") || "لم تُحدد محطة"}
+                          </p>
                         </td>
 
                         <td
