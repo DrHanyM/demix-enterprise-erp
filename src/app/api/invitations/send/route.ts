@@ -92,8 +92,9 @@ export async function POST(request: Request) {
     // 6. إرسال الدعوة من خلال Clerk
     const clerk = await clerkClient();
 
-    const clerkInvitation =
-      await clerk.invitations.createInvitation({
+    let clerkInvitation;
+    try {
+      clerkInvitation = await clerk.invitations.createInvitation({
         emailAddress: invitation.email,
         expiresInDays: INVITATION_EXPIRY_DAYS,
         notify: true,
@@ -101,6 +102,30 @@ export async function POST(request: Request) {
           demixInvitationId: invitation.id,
         },
       });
+    } catch (sendError) {
+      const failureReason = sendError instanceof Error
+        ? `CLERK_CREATE_FAILED:${sendError.name}`
+        : "CLERK_CREATE_FAILED:UNKNOWN";
+      try {
+        await convex.mutation(api.invitations.markInvitationFailed, {
+          invitationId,
+          failureReason,
+        });
+      } catch (auditError) {
+        console.error("Could not record Clerk invitation failure:", {
+          invitationId,
+          errorName: auditError instanceof Error ? auditError.name : "UNKNOWN",
+        });
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          error: "CLERK_INVITATION_CREATE_FAILED",
+          message: "رفض Clerk إنشاء الدعوة؛ تم تسجيل الفشل في سجل النظام إن كانت خدمة Convex متاحة.",
+        },
+        { status: 502 }
+      );
+    }
 
     // Clerk timestamps are milliseconds.
     const expiresAt =
