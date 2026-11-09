@@ -11,6 +11,7 @@ on:
   pull_request:
     branches:
       - preview
+      - feature/clerk-oauth-mcp
 
 jobs:
   test:
