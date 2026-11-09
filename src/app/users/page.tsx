@@ -579,20 +579,32 @@ export default function UsersPage() {
                     <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
                       <h4 className="font-semibold">فحص صلاحيات الإنتاج</h4>
                       {(() => {
-                        const activeCodes = accessDetails.stationAssignments
-                          .filter((a) => a.assignmentStatus === "active" && a.station?.status === "active" && a.role?.status === "active")
-                          .flatMap((a) => a.permissions.map((permission) => permission.code));
-                        const uniqueCodes = [...new Set(activeCodes)];
-                        const required = ["production.records.read", "production.records.create", "production.records.update"];
-                        const missing = required.filter((code) => !uniqueCodes.includes(code));
-                        const extra = uniqueCodes.filter((code) => !required.includes(code));
-                        const hasDelete = uniqueCodes.includes("production.records.delete");
+                        const expectedPermissions = ["production.records.read", "production.records.create", "production.records.update"];
+                        const activeAssignments = accessDetails.stationAssignments.filter((a) => a.assignmentStatus === "active" && a.station?.status === "active" && a.role?.status === "active");
+                        const actualStationCodes = activeAssignments.map((a) => a.station?.code).filter((code): code is string => Boolean(code));
+                        const missingStations = ["ST-001", "ST-002"].filter((code) => !actualStationCodes.includes(code));
+                        const extraStations = [...new Set(actualStationCodes.filter((code) => !["ST-001", "ST-002"].includes(code)))];
+                        const permissionMismatches = activeAssignments.filter((a) => {
+                          const codes = a.permissions.map((permission) => permission.code);
+                          return expectedPermissions.some((code) => !codes.includes(code)) || codes.some((code) => !expectedPermissions.includes(code));
+                        });
+                        const activeCentralAssignments = accessDetails.centralAssignments.filter((a) => a.assignmentStatus === "active" && a.role?.status === "active");
+                        const activePermissionCodes = [
+                          ...activeAssignments.flatMap((a) => a.permissions.map((permission) => permission.code)),
+                          ...activeCentralAssignments.flatMap((a) => a.permissions.map((permission) => permission.code)),
+                        ];
+                        const hasDelete = activePermissionCodes.includes("production.records.delete");
+                        const stationsMatch = missingStations.length === 0 && extraStations.length === 0 && actualStationCodes.length === 2;
+                        const allChecksPass = stationsMatch && permissionMismatches.length === 0 && activeCentralAssignments.length === 0 && !hasDelete;
                         return (
                           <div className="mt-2 space-y-2 text-sm">
-                            <p className={missing.length === 0 && extra.length === 0 ? "text-emerald-300" : "text-amber-300"}>{missing.length === 0 && extra.length === 0 ? "الصلاحيات الثلاث المطلوبة موجودة دون صلاحيات إنتاج إضافية." : "الصلاحيات الفعلية لا تطابق المجموعة المطلوبة بالكامل."}</p>
-                            <p>حذف سجلات الإنتاج: <span className={hasDelete ? "text-red-300" : "text-emerald-300"}>{hasDelete ? "موجود" : "غير موجود ضمن أدوار المحطات النشطة"}</span></p>
-                            {missing.length > 0 && <p className="text-amber-300">صلاحيات ناقصة: {missing.join("، ")}</p>}
-                            {extra.length > 0 && <p className="text-amber-300">صلاحيات إضافية: {extra.join("، ")}</p>}
+                            <p className={allChecksPass ? "text-emerald-300" : "text-amber-300"}>{allChecksPass ? "مطابقة: أبو رواش وأبو قير فقط، والصلاحيات الثلاث لكل محطة، دون دور مركزي أو حذف." : "توجد نقطة تحتاج مراجعة؛ راجع نتائج الفحص التالية."}</p>
+                            <p>المحطات المصرح بها: <span className={stationsMatch ? "text-emerald-300" : "text-amber-300"}>{stationsMatch ? "أبو رواش وأبو قير فقط" : "المحطات لا تطابق المطلوب"}</span></p>
+                            {missingStations.length > 0 && <p className="text-amber-300">محطات ناقصة: {missingStations.join("، ")}</p>}
+                            {extraStations.length > 0 && <p className="text-amber-300">محطات إضافية: {extraStations.join("، ")}</p>}
+                            <p>مجموعة الصلاحيات لكل تعيين محطة: <span className={permissionMismatches.length === 0 && activeAssignments.length === 2 ? "text-emerald-300" : "text-amber-300"}>{permissionMismatches.length === 0 && activeAssignments.length === 2 ? "مطابقة تمامًا (read / create / update)" : "غير مكتملة أو تحتوي صلاحيات إضافية"}</span></p>
+                            <p>الأدوار المركزية النشطة: <span className={activeCentralAssignments.length === 0 ? "text-emerald-300" : "text-red-300"}>{activeCentralAssignments.length === 0 ? "لا يوجد" : activeCentralAssignments.length}</span></p>
+                            <p>حذف سجلات الإنتاج: <span className={hasDelete ? "text-red-300" : "text-emerald-300"}>{hasDelete ? "موجود ضمن صلاحيات نشطة" : "غير موجود ضمن الصلاحيات النشطة"}</span></p>
                           </div>
                         );
                       })()}
