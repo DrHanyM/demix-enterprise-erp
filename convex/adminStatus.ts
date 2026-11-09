@@ -86,7 +86,7 @@ export const verifyCentralAdmin = query({
         adminRole.status === "active" &&
         adminRole.scope === "central" &&
         adminRole.isSystem === true &&
-        permissionCodes.length === 13 &&
+        permissionCodes.length === 3 &&
         auditLog !== null,
 
       user: {
