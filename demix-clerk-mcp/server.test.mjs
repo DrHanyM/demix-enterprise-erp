@@ -88,3 +88,58 @@ test("HTTP server starts and protects the real MCP route without modifying previ
     if (child.exitCode === null) child.kill("SIGKILL");
   }
 });
+
+test("public health and CIMD metadata work without Clerk secrets while MCP fails closed", async () => {
+  const port = 18788;
+  const base = `http://127.0.0.1:${port}`;
+  const child = spawn(process.execPath, ["server.mjs"], {
+    cwd: new URL(".", import.meta.url),
+    env: {
+      PATH: process.env.PATH,
+      PORT: String(port),
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let output = "";
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", chunk => { output += chunk; });
+  child.stderr.on("data", chunk => { output += chunk; });
+
+  try {
+    const deadline = Date.now() + 10000;
+    let ready = false;
+    while (Date.now() < deadline) {
+      if (child.exitCode !== null) throw new Error(`Server exited early: ${output}`);
+      try {
+        const response = await fetch(`${base}/health`);
+        if (response.status === 200) { ready = true; break; }
+      } catch {}
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    assert.equal(ready, true, `Server did not become ready: ${output}`);
+
+    const health = await fetch(`${base}/health`);
+    assert.equal(health.status, 200);
+
+    const metadataResponse = await fetch(`${base}/.well-known/oauth-client-metadata.json`, {
+      headers: { "x-forwarded-proto": "https" },
+    });
+    assert.equal(metadataResponse.status, 200);
+    assert.match(metadataResponse.headers.get("content-type") || "", /application\\/json/i);
+    const metadata = await metadataResponse.json();
+    assert.equal(metadata.client_id, `https://${new URL(base).host}/.well-known/oauth-client-metadata.json`);
+
+    const protectedResponse = await fetch(`${base}/mcp`);
+    assert.equal(protectedResponse.status, 503);
+    assert.equal((await protectedResponse.json()).error, "authentication_not_configured");
+  } finally {
+    child.kill("SIGTERM");
+    await Promise.race([
+      once(child, "exit"),
+      new Promise(resolve => setTimeout(resolve, 2000)),
+    ]);
+    if (child.exitCode === null) child.kill("SIGKILL");
+  }
+});
