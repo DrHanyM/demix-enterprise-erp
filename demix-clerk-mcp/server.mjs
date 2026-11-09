@@ -47,6 +47,7 @@ const authenticateAdminRequest = createAdminAuthenticator({
   resourceUrl: MCP_RESOURCE_URL,
   adminUserId: DEMIX_ADMIN_USER_ID,
   verifyToken: verifyClerkToken,
+  timeoutMs: Number(process.env.MCP_AUTH_TIMEOUT_MS || 8000),
 });
 
 function sendJson(res, status, body, extraHeaders = {}) {
@@ -260,20 +261,57 @@ export async function handleRequest(req, res) {
     return;
   }
 
+
+  const requestId = req.headers["x-vercel-id"] || req.headers["x-request-id"] || "local";
+  const hasBearerToken = (req.headers.authorization || "").startsWith("Bearer ");
+  console.info("[mcp] request received", JSON.stringify({
+    requestId,
+    method: req.method,
+    hasBearerToken,
+    contentType: req.headers["content-type"] || null,
+    contentLength: req.headers["content-length"] || null,
+  }));
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type, mcp-protocol-version, mcp-session-id, last-event-id",
+      "access-control-expose-headers": "mcp-session-id, www-authenticate",
+      "access-control-max-age": "86400",
+    });
+    res.end();
+    return;
+  }
+
   if (!["POST", "GET", "DELETE"].includes(req.method || "")) {
-    res.writeHead(405, { Allow: "POST, GET, DELETE" });
+    res.writeHead(405, { Allow: "POST, GET, DELETE, OPTIONS" });
     res.end("Method not allowed");
     return;
   }
 
   const authResult = await authenticateAdminRequest(req);
+  console.info("[mcp] authentication completed", JSON.stringify({
+    requestId,
+    status: authResult.status,
+  }));
   if (authResult.status === 401) {
     return sendJson(res, 401, { error: "invalid_token" }, {
-      "www-authenticate": `Bearer resource_metadata="${RESOURCE_METADATA_URL}"`,
+      "www-authenticate": "Bearer resource_metadata=\"" + RESOURCE_METADATA_URL + "\"",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "www-authenticate",
     });
   }
   if (authResult.status === 403) {
-    return sendJson(res, 403, { error: "admin_only" });
+    return sendJson(res, 403, { error: "admin_only" }, {
+      "access-control-allow-origin": "*",
+    });
+  }
+  if (authResult.status === 503) {
+    return sendJson(res, 503, { error: "authentication_service_unavailable" }, {
+      "retry-after": "5",
+      "access-control-allow-origin": "*",
+    });
   }
 
   const transport = new StreamableHTTPServerTransport({
@@ -281,21 +319,47 @@ export async function handleRequest(req, res) {
     enableJsonResponse: true,
   });
   const server = createMcpServer();
+  let stage = "server_connect";
 
   try {
+    console.info("[mcp] connecting transport", JSON.stringify({ requestId }));
     await server.connect(transport);
-    await transport.handleRequest(req, res);
+    console.info("[mcp] transport connected", JSON.stringify({ requestId }));
+
+    // Vercel Node Functions lazily populate req.body with a parsed body.
+    // The MCP SDK accepts that parsed value as its third handleRequest arg;
+    // omitting it makes the SDK try to consume an already-parsed request stream.
+    stage = "read_parsed_body";
+    const parsedBody = req.body;
+    console.info("[mcp] dispatching MCP request", JSON.stringify({
+      requestId,
+      stage,
+      hasParsedBody: parsedBody !== undefined && parsedBody !== null,
+      parsedBodyType: parsedBody === null ? "null" : Array.isArray(parsedBody) ? "array" : typeof parsedBody,
+    }));
+
+    stage = "transport_handle_request";
+    await transport.handleRequest(req, res, parsedBody);
+    console.info("[mcp] request handled", JSON.stringify({ requestId }));
   } catch (error) {
-    console.error("MCP request failed:", error?.message || "unknown error");
+    console.error("[mcp] request failed", JSON.stringify({
+      requestId,
+      stage,
+      name: typeof error?.name === "string" ? error.name : "Error",
+      message: typeof error?.message === "string" ? error.message.slice(0, 300) : "Unknown MCP error",
+    }));
     if (!res.headersSent) {
-      res.writeHead(500, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: "MCP request failed" }));
+      res.writeHead(500, {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+      });
+      res.end(JSON.stringify({ error: "MCP request failed", stage }));
     }
   } finally {
-    res.on("close", () => {
-      transport.close().catch(() => {});
-      server.close().catch(() => {});
-    });
+    await Promise.allSettled([
+      transport.close(),
+      server.close(),
+    ]);
   }
 }
 
