@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import AdminConnectionStatus from "@/components/AdminConnectionStatus";
 import UserManagementNavLink from "@/components/UserManagementNavLink";
+import LogoutButton from "@/components/LogoutButton";
 
 const menuGroups: {
   title: string;
@@ -253,6 +254,7 @@ export default async function Home() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              <LogoutButton />
               <div className="hidden items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 sm:flex">
                 <span className="text-teal-600">▣</span>
                 جميع المحطات
