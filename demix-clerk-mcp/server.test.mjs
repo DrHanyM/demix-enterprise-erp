@@ -127,7 +127,7 @@ test("public health and CIMD metadata work without Clerk secrets while MCP fails
       headers: { "x-forwarded-proto": "https" },
     });
     assert.equal(metadataResponse.status, 200);
-    assert.match(metadataResponse.headers.get("content-type") || "", /application\\/json/i);
+    assert.ok((metadataResponse.headers.get("content-type") || "").toLowerCase().includes("application/json"));
     const metadata = await metadataResponse.json();
     assert.equal(metadata.client_id, `https://${new URL(base).host}/.well-known/oauth-client-metadata.json`);
 
