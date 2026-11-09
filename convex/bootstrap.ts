@@ -10,18 +10,8 @@ const APPROVED_EMAIL = "hanymohamed15121974@gmail.com";
 
 const CENTRAL_ADMIN_PERMISSIONS = [
   ["system.users.manage", "Manage users", "system", "users"],
-  ["system.roles.manage", "Manage roles", "system", "roles"],
-  ["system.permissions.manage", "Manage permissions", "system", "permissions"],
-  ["system.audit.read", "View audit log", "system", "audit"],
-  ["system.settings.manage", "Manage system settings", "system", "settings"],
-  ["stations.read", "View stations", "stations", "read"],
-  ["stations.manage", "Manage stations", "stations", "manage"],
-  ["employees.read", "View employees", "employees", "read"],
-  ["employees.manage", "Manage employees", "employees", "manage"],
-  ["attendance.read", "View attendance", "attendance", "read"],
-  ["attendance.manage", "Manage attendance", "attendance", "manage"],
-  ["reports.read", "View reports", "reports", "read"],
-  ["dashboard.read", "View dashboard", "dashboard", "read"],
+  ["system.stations.manage", "Manage stations", "system", "stations"],
+  ["audit.view", "View audit log", "audit", "view"],
 ] as const;
 
 export const bootstrapCentralAdmin = mutation({
