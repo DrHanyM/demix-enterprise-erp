@@ -2,6 +2,23 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { hasRolePermission, requireCentralPermission } from "./lib/auth";
 
+// Return only the authenticated user's own display name from the application database.
+export const getMyProfile = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_authSubject", (q) => q.eq("authSubject", identity.subject))
+      .unique();
+
+    if (!user || user.status !== "active") return null;
+    return { fullName: user.fullName };
+  },
+});
+
 // Safe capability check for conditional UI rendering. This does not expose user data
 // and does not replace authorization checks on protected queries and mutations.
 export const canManageUsers = query({
