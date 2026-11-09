@@ -58,6 +58,21 @@ test("HTTP server starts and protects the real MCP route without modifying previ
     assert.ok(authorizationMetadataBody.authorization_endpoint?.includes("/oauth/authorize"));
     assert.ok(authorizationMetadataBody.token_endpoint?.includes("/oauth/token"));
 
+    const clientMetadataResponse = await fetch(`${BASE}/.well-known/oauth-client-metadata.json`, {
+      headers: { "x-forwarded-proto": "https" },
+    });
+    assert.equal(clientMetadataResponse.status, 200);
+    assert.match(clientMetadataResponse.headers.get("content-type") || "", /application\/json/i);
+    const clientMetadata = await clientMetadataResponse.json();
+    assert.equal(clientMetadata.client_id, `https://${new URL(BASE).host}/.well-known/oauth-client-metadata.json`);
+    assert.equal(clientMetadata.token_endpoint_auth_method, "none");
+    assert.deepEqual(clientMetadata.redirect_uris, [
+      "http://127.0.0.1:6274/oauth/callback",
+      "http://localhost:6274/oauth/callback",
+    ]);
+    assert.deepEqual(clientMetadata.grant_types, ["authorization_code", "refresh_token"]);
+    assert.deepEqual(clientMetadata.response_types, ["code"]);
+
     const missingToken = await fetch(`${BASE}/mcp`);
     assert.equal(missingToken.status, 401);
     assert.match(missingToken.headers.get("www-authenticate") || "", /oauth-protected-resource/);
