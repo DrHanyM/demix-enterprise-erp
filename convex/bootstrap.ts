@@ -23,10 +23,10 @@ export const bootstrapCentralAdmin = mutation({
       throw new Error("BOOTSTRAP_NOT_AUTHORIZED");
     }
 
-    const email = String(identity.email ?? "").trim().toLowerCase();
-    if (email !== APPROVED_EMAIL) {
-      throw new Error("BOOTSTRAP_VERIFIED_EMAIL_MISMATCH");
-    }
+    // Clerk's Convex JWT for this app does not expose an email claim.
+    // Authorization is therefore bound to the exact pre-approved Clerk subject
+    // above; persist the already-verified email associated with that subject.
+    const email = APPROVED_EMAIL;
 
     const [users, roles, permissions, rolePermissions, invitations, assignments, auditLogs] =
       await Promise.all([
