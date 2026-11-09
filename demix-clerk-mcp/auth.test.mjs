@@ -105,3 +105,23 @@ test("publishes protected-resource metadata for the exact MCP URL and Clerk issu
   assert.deepEqual(metadata.authorization_servers, ["https://glorious-husky-5726.clerk.accounts.dev"]);
   assert.ok(metadata.jwks_uri.startsWith("https://glorious-husky-5726.clerk.accounts.dev/"));
 });
+
+
+test("returns a bounded 503 when Clerk token verification stalls", async () => {
+  const authenticate = createAdminAuthenticator({
+    clerkClient: {
+      authenticateRequest: () => new Promise(() => {}),
+    },
+    resourceUrl: RESOURCE,
+    adminUserId: ADMIN,
+    verifyToken: () => {
+      throw new Error("verifyToken should not run after a timeout");
+    },
+    timeoutMs: 15,
+  });
+
+  const startedAt = Date.now();
+  const result = await authenticate(makeRequest("valid-but-stalled"));
+  assert.equal(result.status, 503);
+  assert.ok(Date.now() - startedAt < 1000, "authentication timeout should be bounded");
+});
