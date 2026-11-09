@@ -1,0 +1,45 @@
+name: DeMix Clerk MCP OAuth Tests
+
+on:
+  push:
+    branches:
+      - feature/clerk-oauth-mcp
+    paths:
+      - "demix-clerk-mcp/**"
+      - ".github/workflows/demix-clerk-mcp-oauth.yml"
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - preview
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CI: true
+    defaults:
+      run:
+        working-directory: demix-clerk-mcp
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v7
+        with:
+          ref: feature/clerk-oauth-mcp
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: demix-clerk-mcp/package-lock.json
+
+      - name: Install exactly from lockfile
+        run: npm ci
+
+      - name: Check server syntax
+        run: node --check server.mjs
+
+      - name: Run OAuth, metadata, and HTTP smoke tests
+        run: npm test

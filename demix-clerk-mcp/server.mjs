@@ -1,27 +1,71 @@
 import http from "node:http";
-import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+import { createClerkClient } from "@clerk/backend";
+import { createAdminAuthenticator } from "./auth.mjs";
+import {
+  verifyClerkToken,
+  generateClerkProtectedResourceMetadata,
+  fetchClerkAuthorizationServerMetadata,
+} from "@clerk/mcp-tools/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 
 const PORT = Number(process.env.PORT || 8787);
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
-const MCP_ACCESS_TOKEN = process.env.MCP_ACCESS_TOKEN;
+const CLERK_PUBLISHABLE_KEY = process.env.CLERK_PUBLISHABLE_KEY;
+const MCP_RESOURCE_URL = process.env.MCP_RESOURCE_URL || "http://localhost:8787/mcp";
+const RESOURCE_METADATA_URL = new URL("/.well-known/oauth-protected-resource/mcp", MCP_RESOURCE_URL).href;
+const DEMIX_ADMIN_USER_ID = process.env.DEMIX_ADMIN_USER_ID || "";
 const CLERK_API_BASE = "https://api.clerk.com/v1";
 
 if (!CLERK_SECRET_KEY || !CLERK_SECRET_KEY.startsWith("sk_")) {
   console.error("Missing/invalid CLERK_SECRET_KEY. Set it in your local environment.");
   process.exit(1);
 }
-if (!MCP_ACCESS_TOKEN || MCP_ACCESS_TOKEN.length < 32) {
-  console.error("Set MCP_ACCESS_TOKEN to a random value of at least 32 characters.");
+if (!CLERK_PUBLISHABLE_KEY || !CLERK_PUBLISHABLE_KEY.startsWith("pk_")) {
+  console.error("Missing/invalid CLERK_PUBLISHABLE_KEY. Set it in your local environment.");
+  process.exit(1);
+}
+if (!DEMIX_ADMIN_USER_ID.startsWith("user_")) {
+  console.error("DEMIX_ADMIN_USER_ID is required. Add the approved Clerk admin user ID locally.");
+  process.exit(1);
+}
+if (new URL(MCP_RESOURCE_URL).pathname !== "/mcp") {
+  console.error("MCP_RESOURCE_URL must identify the exact /mcp endpoint.");
   process.exit(1);
 }
 
-function safeEqual(a, b) {
-  const aa = Buffer.from(a || "");
-  const bb = Buffer.from(b || "");
-  return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
+const clerkClient = createClerkClient({
+  secretKey: CLERK_SECRET_KEY,
+  publishableKey: CLERK_PUBLISHABLE_KEY,
+});
+
+const authenticateAdminRequest = createAdminAuthenticator({
+  clerkClient,
+  resourceUrl: MCP_RESOURCE_URL,
+  adminUserId: DEMIX_ADMIN_USER_ID,
+  verifyToken: verifyClerkToken,
+  timeoutMs: Number(process.env.MCP_AUTH_TIMEOUT_MS || 8000),
+});
+
+function sendJson(res, status, body, extraHeaders = {}) {
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    ...extraHeaders,
+  });
+  res.end(JSON.stringify(body));
+}
+
+function sendMetadata(res, body) {
+  sendJson(res, 200, body, {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, OPTIONS",
+    "access-control-allow-headers": "*",
+    "access-control-max-age": "86400",
+  });
 }
 
 async function clerk(path, params = {}) {
@@ -174,33 +218,100 @@ function createMcpServer() {
   return server;
 }
 
-const httpServer = http.createServer(async (req, res) => {
+export async function handleRequest(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+  const pathname = url.pathname.replace(/^\/api(?=\/)/, "");
 
-  if (url.pathname === "/health" && req.method === "GET") {
+  if (pathname === "/health" && req.method === "GET") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ status: "ok", service: "demix-clerk-mcp", mode: "read-only" }));
     return;
   }
 
-  if (url.pathname !== "/mcp") {
+  if (pathname === "/.well-known/oauth-protected-resource/mcp" || pathname === "/.well-known/oauth-protected-resource") {
+    if (req.method === "OPTIONS") return sendMetadata(res, {});
+    if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" }, { Allow: "GET, OPTIONS" });
+    try {
+      const metadata = generateClerkProtectedResourceMetadata({
+        publishableKey: CLERK_PUBLISHABLE_KEY,
+        resourceUrl: MCP_RESOURCE_URL,
+      });
+      return sendMetadata(res, metadata);
+    } catch (error) {
+      console.error("Protected resource metadata failed:", error?.message || "unknown error");
+      return sendJson(res, 500, { error: "metadata_unavailable" });
+    }
+  }
+
+  if (pathname === "/.well-known/oauth-authorization-server") {
+    if (req.method === "OPTIONS") return sendMetadata(res, {});
+    if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" }, { Allow: "GET, OPTIONS" });
+    try {
+      const metadata = await fetchClerkAuthorizationServerMetadata({ publishableKey: CLERK_PUBLISHABLE_KEY });
+      return sendMetadata(res, metadata);
+    } catch (error) {
+      console.error("Authorization server metadata failed:", error?.message || "unknown error");
+      return sendJson(res, 502, { error: "authorization_metadata_unavailable" });
+    }
+  }
+
+  if (pathname !== "/mcp") {
     res.writeHead(404);
     res.end("Not found");
     return;
   }
 
-  const auth = req.headers.authorization || "";
-  const supplied = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!safeEqual(supplied, MCP_ACCESS_TOKEN)) {
-    res.writeHead(401, { "content-type": "application/json", "www-authenticate": "Bearer" });
-    res.end(JSON.stringify({ error: "Unauthorized" }));
+
+  const requestId = req.headers["x-vercel-id"] || req.headers["x-request-id"] || "local";
+  const hasBearerToken = (req.headers.authorization || "").startsWith("Bearer ");
+  console.info("[mcp] request received", JSON.stringify({
+    requestId,
+    method: req.method,
+    hasBearerToken,
+    contentType: req.headers["content-type"] || null,
+    contentLength: req.headers["content-length"] || null,
+  }));
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type, mcp-protocol-version, mcp-session-id, last-event-id",
+      "access-control-expose-headers": "mcp-session-id, www-authenticate",
+      "access-control-max-age": "86400",
+    });
+    res.end();
     return;
   }
 
   if (!["POST", "GET", "DELETE"].includes(req.method || "")) {
-    res.writeHead(405, { Allow: "POST, GET, DELETE" });
+    res.writeHead(405, { Allow: "POST, GET, DELETE, OPTIONS" });
     res.end("Method not allowed");
     return;
+  }
+
+  const authResult = await authenticateAdminRequest(req);
+  console.info("[mcp] authentication completed", JSON.stringify({
+    requestId,
+    status: authResult.status,
+  }));
+  if (authResult.status === 401) {
+    return sendJson(res, 401, { error: "invalid_token" }, {
+      "www-authenticate": "Bearer resource_metadata=\"" + RESOURCE_METADATA_URL + "\"",
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "www-authenticate",
+    });
+  }
+  if (authResult.status === 403) {
+    return sendJson(res, 403, { error: "admin_only" }, {
+      "access-control-allow-origin": "*",
+    });
+  }
+  if (authResult.status === 503) {
+    return sendJson(res, 503, { error: "authentication_service_unavailable" }, {
+      "retry-after": "5",
+      "access-control-allow-origin": "*",
+    });
   }
 
   const transport = new StreamableHTTPServerTransport({
@@ -208,25 +319,59 @@ const httpServer = http.createServer(async (req, res) => {
     enableJsonResponse: true,
   });
   const server = createMcpServer();
+  let stage = "server_connect";
 
   try {
+    console.info("[mcp] connecting transport", JSON.stringify({ requestId }));
     await server.connect(transport);
-    await transport.handleRequest(req, res);
+    console.info("[mcp] transport connected", JSON.stringify({ requestId }));
+
+    // Vercel Node Functions lazily populate req.body with a parsed body.
+    // The MCP SDK accepts that parsed value as its third handleRequest arg;
+    // omitting it makes the SDK try to consume an already-parsed request stream.
+    stage = "read_parsed_body";
+    const parsedBody = req.body;
+    console.info("[mcp] dispatching MCP request", JSON.stringify({
+      requestId,
+      stage,
+      hasParsedBody: parsedBody !== undefined && parsedBody !== null,
+      parsedBodyType: parsedBody === null ? "null" : Array.isArray(parsedBody) ? "array" : typeof parsedBody,
+    }));
+
+    stage = "transport_handle_request";
+    await transport.handleRequest(req, res, parsedBody);
+    console.info("[mcp] request handled", JSON.stringify({ requestId }));
   } catch (error) {
-    console.error("MCP request failed:", error?.message || "unknown error");
+    console.error("[mcp] request failed", JSON.stringify({
+      requestId,
+      stage,
+      name: typeof error?.name === "string" ? error.name : "Error",
+      message: typeof error?.message === "string" ? error.message.slice(0, 300) : "Unknown MCP error",
+    }));
     if (!res.headersSent) {
-      res.writeHead(500, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: "MCP request failed" }));
+      res.writeHead(500, {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+      });
+      res.end(JSON.stringify({ error: "MCP request failed", stage }));
     }
   } finally {
-    res.on("close", () => {
-      transport.close().catch(() => {});
-      server.close().catch(() => {});
-    });
+    await Promise.allSettled([
+      transport.close(),
+      server.close(),
+    ]);
   }
-});
+}
 
-httpServer.listen(PORT, "127.0.0.1", () => {
-  console.log(`DeMix Clerk MCP listening on http://127.0.0.1:${PORT}`);
-  console.log("Read-only tools enabled. No write/delete tools are exposed.");
-});
+// Vercel's Node framework treats this file as the server entrypoint.
+// Export the request handler explicitly for its serverless runtime.
+export default handleRequest;
+
+const httpServer = http.createServer(handleRequest);
+const isDirectExecution = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectExecution) {
+  httpServer.listen(PORT, "127.0.0.1", () => {
+    console.log(`DeMix Clerk MCP listening on http://127.0.0.1:${PORT}`);
+    console.log("Clerk OAuth enabled. Admin allowlist enforced. Read-only tools only.");
+  });
+}
