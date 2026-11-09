@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -34,6 +35,7 @@ function toLocalDateTime(timestamp: number) {
 }
 
 export default function ProductionPage() {
+  const router = useRouter();
   const stations = useQuery(api.productionRecords.listMyStations);
   const [stationId, setStationId] = useState("");
   const selectedStationId = stationId as Id<"stations">;
@@ -122,10 +124,19 @@ export default function ProductionPage() {
   return (
     <main dir="rtl" className="min-h-screen bg-slate-950 p-5 text-white md:p-9">
       <div className="mx-auto max-w-7xl space-y-7">
-        <header>
-          <p className="text-sm text-blue-400">DEMIX ENTERPRISE ERP</p>
-          <h1 className="mt-2 text-3xl font-bold">التشغيل والإنتاج</h1>
-          <p className="mt-2 text-sm text-slate-400">إدخال وتعديل سجلات الإنتاج في المحطات المصرح بها فقط.</p>
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-blue-400">DEMIX ENTERPRISE ERP</p>
+            <h1 className="mt-2 text-3xl font-bold">التشغيل والإنتاج</h1>
+            <p className="mt-2 text-sm text-slate-400">إدخال وتعديل سجلات الإنتاج في المحطات المصرح بها فقط.</p>
+          </div>
+          <button type="button" onClick={() => {
+            if (window.history.length > 1) router.back();
+            else router.push("/");
+          }} className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-5 py-3 font-semibold text-white transition hover:border-blue-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="العودة إلى الصفحة السابقة">
+            <span aria-hidden="true">→</span>
+            العودة للصفحة السابقة
+          </button>
         </header>
 
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
