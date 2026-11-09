@@ -54,7 +54,7 @@ export const listMyStations = query({
     const assignments = await ctx.db.query("userStations")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
-    const result = [];
+    const result: Array<{ id: Id<"stations">; code: string; name: string }> = [];
     for (const assignment of assignments) {
       if (assignment.status !== "active") continue;
       const station = await ctx.db.get(assignment.stationId);
