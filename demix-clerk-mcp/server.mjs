@@ -20,35 +20,40 @@ const RESOURCE_METADATA_URL = new URL("/.well-known/oauth-protected-resource/mcp
 const DEMIX_ADMIN_USER_ID = process.env.DEMIX_ADMIN_USER_ID || "";
 const CLERK_API_BASE = "https://api.clerk.com/v1";
 
-if (!CLERK_SECRET_KEY || !CLERK_SECRET_KEY.startsWith("sk_")) {
-  console.error("Missing/invalid CLERK_SECRET_KEY. Set it in your local environment.");
-  process.exit(1);
-}
-if (!CLERK_PUBLISHABLE_KEY || !CLERK_PUBLISHABLE_KEY.startsWith("pk_")) {
-  console.error("Missing/invalid CLERK_PUBLISHABLE_KEY. Set it in your local environment.");
-  process.exit(1);
-}
-if (!DEMIX_ADMIN_USER_ID.startsWith("user_")) {
-  console.error("DEMIX_ADMIN_USER_ID is required. Add the approved Clerk admin user ID locally.");
-  process.exit(1);
-}
 if (new URL(MCP_RESOURCE_URL).pathname !== "/mcp") {
   console.error("MCP_RESOURCE_URL must identify the exact /mcp endpoint.");
   process.exit(1);
 }
 
-const clerkClient = createClerkClient({
-  secretKey: CLERK_SECRET_KEY,
-  publishableKey: CLERK_PUBLISHABLE_KEY,
-});
+// Initialize Clerk credentials only when a protected MCP request arrives.
+// Public health and OAuth client-metadata endpoints do not require server secrets.
+let authenticateAdminRequest;
+function getAdminAuthenticator() {
+  if (!CLERK_SECRET_KEY || !CLERK_SECRET_KEY.startsWith("sk_")) {
+    throw new Error("Missing/invalid CLERK_SECRET_KEY");
+  }
+  if (!CLERK_PUBLISHABLE_KEY || !CLERK_PUBLISHABLE_KEY.startsWith("pk_")) {
+    throw new Error("Missing/invalid CLERK_PUBLISHABLE_KEY");
+  }
+  if (!DEMIX_ADMIN_USER_ID.startsWith("user_")) {
+    throw new Error("DEMIX_ADMIN_USER_ID is not configured");
+  }
 
-const authenticateAdminRequest = createAdminAuthenticator({
-  clerkClient,
-  resourceUrl: MCP_RESOURCE_URL,
-  adminUserId: DEMIX_ADMIN_USER_ID,
-  verifyToken: verifyClerkToken,
-  timeoutMs: Number(process.env.MCP_AUTH_TIMEOUT_MS || 8000),
-});
+  if (!authenticateAdminRequest) {
+    const clerkClient = createClerkClient({
+      secretKey: CLERK_SECRET_KEY,
+      publishableKey: CLERK_PUBLISHABLE_KEY,
+    });
+    authenticateAdminRequest = createAdminAuthenticator({
+      clerkClient,
+      resourceUrl: MCP_RESOURCE_URL,
+      adminUserId: DEMIX_ADMIN_USER_ID,
+      verifyToken: verifyClerkToken,
+      timeoutMs: Number(process.env.MCP_AUTH_TIMEOUT_MS || 8000),
+    });
+  }
+  return authenticateAdminRequest;
+}
 
 function sendJson(res, status, body, extraHeaders = {}) {
   res.writeHead(status, {
@@ -331,7 +336,19 @@ export async function handleRequest(req, res) {
     return;
   }
 
-  const authResult = await authenticateAdminRequest(req);
+  let authResult;
+  try {
+    authResult = await getAdminAuthenticator()(req);
+  } catch (error) {
+    console.error("[mcp] authentication configuration unavailable", JSON.stringify({
+      requestId,
+      message: typeof error?.message === "string" ? error.message.slice(0, 160) : "Authentication is not configured",
+    }));
+    return sendJson(res, 503, { error: "authentication_not_configured" }, {
+      "retry-after": "30",
+      "access-control-allow-origin": "*",
+    });
+  }
   console.info("[mcp] authentication completed", JSON.stringify({
     requestId,
     status: authResult.status,
