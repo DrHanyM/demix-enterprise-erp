@@ -17,7 +17,14 @@ type InvitationStatus =
 export default function UsersPage() {
   // Convex authentication can finish after Clerk authentication. Do not run
   // protected queries until Convex has accepted the Clerk session token.
+  const { isLoaded: isClerkLoaded, isSignedIn, getToken } = useAuth();
   const { isLoading: isConvexAuthLoading, isAuthenticated } = useConvexAuth();
+  const [authDiagnostic, setAuthDiagnostic] = useState<{
+    status: string;
+    issuer?: string;
+    audience?: string;
+    error?: string;
+  }>({ status: "لم يبدأ الفحص بعد" });
   const data = useQuery(api.users.listUsers, isAuthenticated ? {} : "skip");
   const invitations = useQuery(api.invitations.listInvitations, isAuthenticated ? {} : "skip");
   const stations = useQuery(api.stations.listStations, isAuthenticated ? {} : "skip");
@@ -42,6 +49,52 @@ export default function UsersPage() {
   const [messageType, setMessageType] = useState<"success" | "error">(
     "success"
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function inspectAuthentication() {
+      if (!isClerkLoaded) {
+        setAuthDiagnostic({ status: "Clerk لم يكتمل تحميله بعد" });
+        return;
+      }
+      if (!isSignedIn) {
+        setAuthDiagnostic({ status: "لا توجد جلسة دخول نشطة في Clerk" });
+        return;
+      }
+
+      try {
+        const token = await getToken({ template: "convex" });
+        if (!token) {
+          if (!cancelled) setAuthDiagnostic({ status: "Clerk لم يُصدر JWT باسم convex (التوكن فارغ)" });
+          return;
+        }
+
+        const payloadPart = token.split(".")[1];
+        if (!payloadPart) throw new Error("صيغة JWT غير صحيحة");
+        const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+        const payload = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="))) as { iss?: string; aud?: string | string[] };
+
+        if (!cancelled) {
+          setAuthDiagnostic({
+            status: "تم إصدار JWT من Clerk بنجاح",
+            issuer: payload.iss,
+            audience: Array.isArray(payload.aud) ? payload.aud.join(", ") : payload.aud,
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setAuthDiagnostic({
+            status: "فشل طلب JWT من Clerk",
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+
+    void inspectAuthentication();
+    return () => { cancelled = true; };
+  }, [isClerkLoaded, isSignedIn, getToken]);
 
   const users = data?.users ?? [];
   const invitationList = invitations ?? [];
@@ -205,7 +258,17 @@ export default function UsersPage() {
   if (!isAuthenticated) {
     return (
       <main dir="rtl" className="min-h-screen bg-slate-950 p-8 text-white">
-        <p>لم يتم توثيق جلسة الدخول مع قاعدة البيانات. حدّث الصفحة، وإذا استمرت المشكلة سجّل الخروج ثم الدخول مرة أخرى.</p>
+        <h1 className="text-xl font-bold">تعذر توثيق الجلسة مع قاعدة البيانات</h1>
+        <p className="mt-2 text-slate-300">نتيجة فحص الاتصال:</p>
+        <div className="mt-4 max-w-2xl space-y-2 rounded-xl border border-amber-700 bg-slate-900 p-4 text-sm">
+          <p>Clerk: {isClerkLoaded ? (isSignedIn ? "تم تحميله – المستخدم مسجل الدخول" : "تم تحميله – لا توجد جلسة") : "جارٍ التحميل"}</p>
+          <p>Convex: {isConvexAuthLoading ? "جارٍ التحقق" : isAuthenticated ? "موثق" : "لم يقبل جلسة المصادقة"}</p>
+          <p>JWT: {authDiagnostic.status}</p>
+          {authDiagnostic.issuer && <p className="break-all">Issuer: {authDiagnostic.issuer}</p>}
+          {authDiagnostic.audience && <p>Audience: {authDiagnostic.audience}</p>}
+          {authDiagnostic.error && <p className="break-words text-red-300">التفصيل: {authDiagnostic.error}</p>}
+        </div>
+        <p className="mt-4 text-slate-400">هذا الفحص لا يعرض التوكن ولا يغير أي بيانات أو صلاحيات. أرسل صورة هذه النتيجة لتحديد موضع الخلل.</p>
       </main>
     );
   }
