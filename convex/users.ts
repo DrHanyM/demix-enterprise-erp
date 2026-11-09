@@ -1,6 +1,41 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireCentralPermission } from "./lib/auth";
+import { hasRolePermission, requireCentralPermission } from "./lib/auth";
+
+// Safe capability check for conditional UI rendering. This does not expose user data
+// and does not replace authorization checks on protected queries and mutations.
+export const canManageUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return false;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_authSubject", (q) => q.eq("authSubject", identity.subject))
+      .unique();
+    if (!user || user.status !== "active") return false;
+
+    const assignments = await ctx.db
+      .query("centralUserRoles")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    for (const assignment of assignments) {
+      if (assignment.status !== "active") continue;
+      const role = await ctx.db.get(assignment.roleId);
+      if (
+        role &&
+        role.status === "active" &&
+        role.scope === "central" &&
+        await hasRolePermission(ctx, role._id, "system.users.manage")
+      ) {
+        return true;
+      }
+    }
+    return false;
+  },
+});
 
 export const listUsers = query({
   args: {},
