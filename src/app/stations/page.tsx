@@ -10,6 +10,7 @@ export default function StationsPage() {
   const stations = useQuery(api.stations.listStations);
 
   const createStation = useMutation(api.stations.createStation);
+  const initializeCompanyStations = useMutation(api.stations.initializeCompanyStations);
   const updateStation = useMutation(api.stations.updateStation);
   const setStationStatus = useMutation(api.stations.setStationStatus);
 
@@ -66,6 +67,28 @@ export default function StationsPage() {
     }
   }
 
+  async function handleInitializeCompanyStations() {
+    const confirmed = window.confirm(
+      "سيتم إضافة المحطات الست المعتمدة كـنشطة، وتسجيل كل إضافة في سجل التدقيق. هل تريد المتابعة؟"
+    );
+    if (!confirmed) return;
+
+    setLoading(true);
+    setMessage("");
+    setErrorMessage("");
+    try {
+      const result = await initializeCompanyStations({});
+      setMessage(
+        `اكتملت تهيئة المحطات. تمت إضافة ${result.createdCount} محطة، وكانت ${result.existingCount} مسجلة مسبقًا.`
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "تعذر تهيئة المحطات."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
   function startEditing(
     stationId: Id<"stations">,
     stationName: string
@@ -182,6 +205,21 @@ export default function StationsPage() {
             flexWrap: "wrap",
           }}
         >
+          <button
+            type="button"
+            onClick={() => void handleInitializeCompanyStations()}
+            disabled={loading || !stations}
+            style={{
+              padding: "12px 22px",
+              border: "none",
+              borderRadius: "8px",
+              background: "#0f766e",
+              color: "#fff",
+              cursor: loading || !stations ? "wait" : "pointer",
+            }}
+          >
+            {loading ? "جارٍ التنفيذ..." : "تهيئة المحطات الست"}
+          </button>
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
