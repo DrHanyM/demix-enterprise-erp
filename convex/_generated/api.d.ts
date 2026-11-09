@@ -13,6 +13,7 @@ import type * as auditLogs from "../auditLogs.js";
 import type * as authTest from "../authTest.js";
 import type * as http from "../http.js";
 import type * as invitations from "../invitations.js";
+import type * as productionRecords from "../productionRecords.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as securityChecks from "../securityChecks.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   authTest: typeof authTest;
   http: typeof http;
   invitations: typeof invitations;
+  productionRecords: typeof productionRecords;
   "lib/audit": typeof lib_audit;
   "lib/auth": typeof lib_auth;
   securityChecks: typeof securityChecks;
