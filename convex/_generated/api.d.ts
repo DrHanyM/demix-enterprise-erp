@@ -9,6 +9,7 @@
  */
 
 import type * as adminStatus from "../adminStatus.js";
+import type * as bootstrap from "../bootstrap.js";
 import type * as auditLogs from "../auditLogs.js";
 import type * as authTest from "../authTest.js";
 import type * as http from "../http.js";
@@ -28,6 +29,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   adminStatus: typeof adminStatus;
+  bootstrap: typeof bootstrap;
   auditLogs: typeof auditLogs;
   authTest: typeof authTest;
   http: typeof http;
