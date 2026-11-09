@@ -140,7 +140,7 @@ function SectionTitle({
 export default async function Home() {
   await auth.protect();
   const user = await currentUser();
-  const accountName = user?.fullName || [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.primaryEmailAddress?.emailAddress || "مستخدم النظام";
+  const accountName = user?.fullName || [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.username || "مستخدم النظام";
 
   return (
     <main
