@@ -1,4 +1,4 @@
-﻿import { query } from "./_generated/server";
+import { query } from "./_generated/server";
 import { requireCentralPermission } from "./lib/auth";
 
 export const listUsers = query({
@@ -27,3 +27,89 @@ export const listUsers = query({
     };
   },
 });
+
+// تفاصيل الوصول الفعلي للمستخدم: الأدوار، المحطات، والصلاحيات المرتبطة بها.
+export const getUserAccessDetails = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    await requireCentralPermission(ctx, "system.users.manage");
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("USER_NOT_FOUND");
+
+    const stationAssignments = await ctx.db
+      .query("userStations")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const stationDetails = await Promise.all(
+      stationAssignments.map(async (assignment) => {
+        const [station, role, links] = await Promise.all([
+          ctx.db.get(assignment.stationId),
+          ctx.db.get(assignment.roleId),
+          ctx.db.query("rolePermissions")
+            .withIndex("by_role", (q) => q.eq("roleId", assignment.roleId))
+            .collect(),
+        ]);
+        const permissions = await Promise.all(
+          links.map(async (link) => {
+            const permission = await ctx.db.get(link.permissionId);
+            return permission
+              ? { code: permission.code, name: permission.name, module: permission.module, action: permission.action }
+              : null;
+          })
+        );
+        return {
+          assignmentStatus: assignment.status,
+          assignedAt: assignment.assignedAt,
+          station: station ? { id: station._id, code: station.code, name: station.name, status: station.status } : null,
+          role: role ? { code: role.code, name: role.name, scope: role.scope, status: role.status } : null,
+          permissions: permissions.filter((item): item is NonNullable<typeof item> => item !== null),
+        };
+      })
+    );
+
+    const centralAssignments = await ctx.db
+      .query("centralUserRoles")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const centralDetails = await Promise.all(
+      centralAssignments.map(async (assignment) => {
+        const [role, links] = await Promise.all([
+          ctx.db.get(assignment.roleId),
+          ctx.db.query("rolePermissions")
+            .withIndex("by_role", (q) => q.eq("roleId", assignment.roleId))
+            .collect(),
+        ]);
+        const permissions = await Promise.all(
+          links.map(async (link) => {
+            const permission = await ctx.db.get(link.permissionId);
+            return permission
+              ? { code: permission.code, name: permission.name, module: permission.module, action: permission.action }
+              : null;
+          })
+        );
+        return {
+          assignmentStatus: assignment.status,
+          role: role ? { code: role.code, name: role.name, scope: role.scope, status: role.status } : null,
+          permissions: permissions.filter((item): item is NonNullable<typeof item> => item !== null),
+        };
+      })
+    );
+
+    return {
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+      stationAssignments: stationDetails,
+      centralAssignments: centralDetails,
+    };
+  },
+});
+
