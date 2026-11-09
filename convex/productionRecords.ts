@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { requireActiveUser, requireStationPermission } from "./lib/auth";
+import { hasRolePermission, requireActiveUser, requireStationPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
 
 const READ = "production.records.read";
@@ -67,6 +67,38 @@ export const listMyStations = query({
       }
     }
     return result.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  },
+});
+
+// Self-service diagnostic: exposes only the signed-in user's own station assignments and permission flags.
+export const getMyStationAccessDiagnostics = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await requireActiveUser(ctx);
+    const assignments = await ctx.db.query("userStations")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    return await Promise.all(assignments.map(async (assignment) => {
+      const [station, role] = await Promise.all([
+        ctx.db.get(assignment.stationId),
+        ctx.db.get(assignment.roleId),
+      ]);
+      const permissionFlags = {
+        read: !!role && role.status === "active" && role.scope === "station" &&
+          await hasRolePermission(ctx, role._id, READ),
+        create: !!role && role.status === "active" && role.scope === "station" &&
+          await hasRolePermission(ctx, role._id, CREATE),
+        update: !!role && role.status === "active" && role.scope === "station" &&
+          await hasRolePermission(ctx, role._id, UPDATE),
+      };
+      return {
+        assignmentStatus: assignment.status,
+        station: station ? { code: station.code, name: station.name, status: station.status } : null,
+        role: role ? { code: role.code, name: role.name, scope: role.scope, status: role.status } : null,
+        permissions: permissionFlags,
+      };
+    }));
   },
 });
 
