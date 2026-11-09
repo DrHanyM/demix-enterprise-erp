@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -15,9 +15,12 @@ type InvitationStatus =
   | "failed";
 
 export default function UsersPage() {
-  const data = useQuery(api.users.listUsers);
-  const invitations = useQuery(api.invitations.listInvitations);
-  const stations = useQuery(api.stations.listStations);
+  // Convex authentication can finish after Clerk authentication. Do not run
+  // protected queries until Convex has accepted the Clerk session token.
+  const { isLoading: isConvexAuthLoading, isAuthenticated } = useConvexAuth();
+  const data = useQuery(api.users.listUsers, isAuthenticated ? {} : "skip");
+  const invitations = useQuery(api.invitations.listInvitations, isAuthenticated ? {} : "skip");
+  const stations = useQuery(api.stations.listStations, isAuthenticated ? {} : "skip");
 
   const createInvitationDraft = useMutation(
     api.invitations.createInvitationDraft
@@ -26,7 +29,10 @@ export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
-  const accessDetails = useQuery(api.users.getUserAccessDetails, selectedUserId ? { userId: selectedUserId } : "skip");
+  const accessDetails = useQuery(
+    api.users.getUserAccessDetails,
+    isAuthenticated && selectedUserId ? { userId: selectedUserId } : "skip"
+  );
 
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -186,6 +192,22 @@ export default function UsersPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  if (isConvexAuthLoading) {
+    return (
+      <main dir="rtl" className="min-h-screen bg-slate-950 p-8 text-white">
+        <p>جارٍ التحقق من جلسة الدخول مع Convex...</p>
+      </main>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <main dir="rtl" className="min-h-screen bg-slate-950 p-8 text-white">
+        <p>لم يتم توثيق جلسة الدخول مع قاعدة البيانات. حدّث الصفحة، وإذا استمرت المشكلة سجّل الخروج ثم الدخول مرة أخرى.</p>
+      </main>
+    );
   }
 
   if (data === undefined) {
