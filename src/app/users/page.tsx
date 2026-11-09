@@ -26,9 +26,11 @@ export default function UsersPage() {
     audience?: string;
     error?: string;
   }>({ status: "لم يبدأ الفحص بعد" });
-  const data = useQuery(api.users.listUsers, isAuthenticated ? {} : "skip");
-  const invitations = useQuery(api.invitations.listInvitations, isAuthenticated ? {} : "skip");
-  const stations = useQuery(api.stations.listStations, isAuthenticated ? {} : "skip");
+  const canManageUsers = useQuery(api.users.canManageUsers, isAuthenticated ? {} : "skip");
+  const hasUserManagementAccess = isAuthenticated && canManageUsers === true;
+  const data = useQuery(api.users.listUsers, hasUserManagementAccess ? {} : "skip");
+  const invitations = useQuery(api.invitations.listInvitations, hasUserManagementAccess ? {} : "skip");
+  const stations = useQuery(api.stations.listStations, hasUserManagementAccess ? {} : "skip");
 
   const createInvitationDraft = useMutation(
     api.invitations.createInvitationDraft
@@ -39,7 +41,7 @@ export default function UsersPage() {
   const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
   const accessDetails = useQuery(
     api.users.getUserAccessDetails,
-    isAuthenticated && selectedUserId ? { userId: selectedUserId } : "skip"
+    hasUserManagementAccess && selectedUserId ? { userId: selectedUserId } : "skip"
   );
 
   const [email, setEmail] = useState("");
@@ -270,6 +272,33 @@ export default function UsersPage() {
           {authDiagnostic.error && <p className="break-words text-red-300">التفصيل: {authDiagnostic.error}</p>}
         </div>
         <p className="mt-4 text-slate-400">هذا الفحص لا يعرض التوكن ولا يغير أي بيانات أو صلاحيات. أرسل صورة هذه النتيجة لتحديد موضع الخلل.</p>
+      </main>
+    );
+  }
+
+  if (canManageUsers === false) {
+    return (
+      <main dir="rtl" className="min-h-screen bg-slate-950 p-8 text-white">
+        <section className="mx-auto max-w-xl rounded-2xl border border-amber-700/60 bg-slate-900 p-6" role="status" aria-live="polite">
+          <h1 className="text-xl font-bold">ليس لديك صلاحية الوصول إلى إدارة المستخدمين</h1>
+          <p className="mt-3 text-sm leading-7 text-slate-300">
+            حسابك مخصص لتشغيل الإنتاج في المحطات المصرح بها. لا تتطلب مهامك الوصول إلى إدارة الحسابات أو الدعوات.
+          </p>
+          <p className="mt-3 text-sm text-slate-400">
+            إذا كنت تحتاج إلى هذه الصفحة لأداء مهمة إدارية، تواصل مع مدير النظام.
+          </p>
+          <a href="/" className="mt-5 inline-flex rounded-lg bg-teal-400 px-4 py-2 text-sm font-bold text-slate-950">
+            العودة إلى لوحة التحكم
+          </a>
+        </section>
+      </main>
+    );
+  }
+
+  if (canManageUsers === undefined) {
+    return (
+      <main dir="rtl" className="min-h-screen bg-slate-950 p-8 text-white">
+        <p>جارٍ التحقق من صلاحية الوصول إلى إدارة المستخدمين...</p>
       </main>
     );
   }
