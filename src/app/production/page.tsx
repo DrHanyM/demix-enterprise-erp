@@ -37,6 +37,7 @@ function toLocalDateTime(timestamp: number) {
 export default function ProductionPage() {
   const router = useRouter();
   const stations = useQuery(api.productionRecords.listMyStations);
+  const accessDiagnostics = useQuery(api.productionRecords.getMyStationAccessDiagnostics);
   const [stationId, setStationId] = useState("");
   const selectedStationId = stationId as Id<"stations">;
   const records = useQuery(
@@ -145,7 +146,27 @@ export default function ProductionPage() {
             <option value="">اختر المحطة</option>
             {stations.map((station) => <option key={station.id} value={station.id}>{station.name} ({station.code})</option>)}
           </select>
-          {stations.length === 0 && <p className="mt-3 text-sm text-amber-300">لا توجد محطات مرتبطة بحسابك أو لا تملك صلاحية الاطلاع عليها.</p>}
+          {stations.length === 0 && <p className="mt-3 text-sm text-amber-300">لا توجد محطات متاحة حاليًا. تفاصيل فحص التكليف والصلاحيات الخاصة بحسابك:</p>}
+          {stations.length === 0 && accessDiagnostics !== undefined && (
+            <div className="mt-4 space-y-3">
+              {accessDiagnostics.length === 0 ? (
+                <p className="rounded-lg border border-amber-800 bg-amber-950/30 p-3 text-sm text-amber-200">لم يتم العثور على أي تكليف محطة مرتبط بحساب الدخول الحالي.</p>
+              ) : accessDiagnostics.map((item, index) => (
+                <div key={index} className="rounded-lg border border-slate-700 bg-slate-950 p-4 text-sm">
+                  <p className="font-semibold">{item.station ? `${item.station.name} (${item.station.code})` : "محطة غير موجودة"}</p>
+                  <p className="mt-1 text-slate-300">حالة التكليف: {item.assignmentStatus} · المحطة: {item.station?.status ?? "غير موجودة"}</p>
+                  <p className="mt-1 text-slate-300">الدور: {item.role?.name ?? "غير موجود"} ({item.role?.code ?? "—"}) · النطاق: {item.role?.scope ?? "—"} · الحالة: {item.role?.status ?? "—"}</p>
+                  <p className="mt-2 text-slate-300">الصلاحيات:
+                    <span className={item.permissions.read ? "text-emerald-300" : "text-red-300"}> قراءة {item.permissions.read ? "✓" : "✕"}</span>
+                    {" · "}
+                    <span className={item.permissions.create ? "text-emerald-300" : "text-red-300"}> إضافة {item.permissions.create ? "✓" : "✕"}</span>
+                    {" · "}
+                    <span className={item.permissions.update ? "text-emerald-300" : "text-red-300"}> تعديل {item.permissions.update ? "✓" : "✕"}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {stationId && (
