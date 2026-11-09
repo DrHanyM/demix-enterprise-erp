@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import AdminConnectionStatus from "@/components/AdminConnectionStatus";
 
 const menuGroups: {
   title: string;
@@ -254,8 +255,7 @@ export default async function Home() {
 
           <div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-7">
 
-            {/* اختبار اتصال Clerk مع Convex */}
-            {/* تهيئة المدير المركزي */}
+            <AdminConnectionStatus />
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-slate-800">
