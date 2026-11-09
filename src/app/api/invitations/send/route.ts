@@ -96,6 +96,9 @@ export async function POST(request: Request) {
     try {
       clerkInvitation = await clerk.invitations.createInvitation({
         emailAddress: invitation.email,
+        // Send invitees back to the ERP sign-up page, not Clerk's Account Portal.
+        // The SignUp component completes the invitation ticket flow in our app.
+        redirectUrl: new URL("/sign-up", request.url).toString(),
         expiresInDays: INVITATION_EXPIRY_DAYS,
         notify: true,
         publicMetadata: {
