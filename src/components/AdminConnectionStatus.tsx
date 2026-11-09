@@ -28,6 +28,7 @@ export default function AdminConnectionStatus() {
 
   if (authLoading) return <section dir="rtl" className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">جارٍ التحقق من جلسة الدخول والاتصال بقاعدة البيانات...</section>;
   if (!isAuthenticated) return <section dir="rtl" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800" role="status">لم يتم تأكيد جلسة المصادقة مع Convex. سجّل الدخول ثم أعد تحميل الصفحة.</section>;
+  if (report && "isApprovedCentralAdmin" in report && !report.isApprovedCentralAdmin) return null;
   if (report === undefined) return <section dir="rtl" className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600" aria-live="polite">تم تسجيل الدخول. جارٍ تحميل حالة المستخدم والصلاحيات من Convex...</section>;
 
   if (!report.verified) {
