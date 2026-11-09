@@ -1,4 +1,5 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
+import CurrentUserName from "@/components/CurrentUserName";
 import AdminConnectionStatus from "@/components/AdminConnectionStatus";
 import UserManagementNavLink from "@/components/UserManagementNavLink";
 import LogoutButton from "@/components/LogoutButton";
@@ -139,8 +140,7 @@ function SectionTitle({
 
 export default async function Home() {
   await auth.protect();
-  const user = await currentUser();
-  const accountName = user?.fullName || [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.username || "مستخدم النظام";
+
 
   return (
     <main
@@ -230,7 +230,7 @@ export default async function Home() {
                 م
               </div>
               <div>
-                <div className="text-xs font-bold">{accountName}</div>
+                <div className="text-xs font-bold"><CurrentUserName /></div>
               </div>
             </div>
           </div>
@@ -261,8 +261,7 @@ export default async function Home() {
               </div>
 
               <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[10px] font-semibold text-blue-800">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-200 text-[9px] font-bold">{accountName.trim().charAt(0)}</span>
-                <span>الحساب الحالي: {accountName}</span>
+                <CurrentUserName showLabel />
               </div>
 
               <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[10px] font-semibold text-amber-700">
