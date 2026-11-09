@@ -17,7 +17,7 @@ export default function AdminConnectionStatus() {
     try {
       const result = await bootstrap({});
       setMessage(result.success
-        ? "تم إنشاء المدير المركزي وربط 13 صلاحية وتسجيل عملية التهيئة. جارٍ إعادة التحقق..."
+        ? "تم إنشاء المدير المركزي وربط 3 صلاحيات وتسجيل عملية التهيئة. جارٍ إعادة التحقق..."
         : "لم تكتمل التهيئة.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "تعذر تنفيذ التهيئة.");
@@ -39,7 +39,7 @@ export default function AdminConnectionStatus() {
           <div className="mt-3 grid gap-2 text-xs text-amber-900 sm:grid-cols-3">
             <div>المستخدم: {report.user.fullName}</div>
             <div>الدور: {report.role?.code ?? "غير معيّن"}</div>
-            <div>الصلاحيات: {report.permissionsCount}/13</div>
+            <div>الصلاحيات: {report.permissionsCount}/3</div>
             <div>حالة الحساب: {report.user.status}</div>
             <div>سجل التهيئة: {report.auditLogExists ? "موجود" : "غير موجود"}</div>
           </div>
@@ -63,7 +63,7 @@ export default function AdminConnectionStatus() {
     <section dir="rtl" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4" role="status">
       <div className="font-bold text-emerald-900">اكتمل التحقق من Clerk وConvex واعتماد المدير المركزي</div>
       <div className="mt-2 grid gap-2 text-xs text-emerald-900 sm:grid-cols-3">
-        <div>المستخدم: {report.user.fullName}</div><div>البريد: {report.user.email}</div><div>الدور: {report.role?.name ?? report.role?.code ?? "غير محدد"}</div><div>الصلاحيات: {report.permissionsCount}/13</div><div>سجل التهيئة: موجود</div><div>حالة الحساب: {report.user.status}</div>
+        <div>المستخدم: {report.user.fullName}</div><div>البريد: {report.user.email}</div><div>الدور: {report.role?.name ?? report.role?.code ?? "غير محدد"}</div><div>الصلاحيات: {report.permissionsCount}/3</div><div>سجل التهيئة: موجود</div><div>حالة الحساب: {report.user.status}</div>
       </div>
     </section>
   );
