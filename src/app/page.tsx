@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import AdminConnectionStatus from "@/components/AdminConnectionStatus";
+import UserManagementNavLink from "@/components/UserManagementNavLink";
 
 const menuGroups: {
   title: string;
@@ -186,7 +187,9 @@ export default async function Home() {
                 </div>
                 <div className="space-y-1">
                   {group.items.map((item) => (
-                    item.href ? (
+                    item.href === "/users" ? (
+                      <UserManagementNavLink key={item.label} />
+                    ) : item.href ? (
                       <a
                         key={item.label}
                         href={item.href}
