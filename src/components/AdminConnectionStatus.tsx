@@ -74,6 +74,18 @@ export default function AdminConnectionStatus() {
     );
   }
 
+  if (!("user" in report)) {
+    return (
+      <section
+        dir="rtl"
+        className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+        role="alert"
+      >
+        تعذر استكمال تقرير اعتماد المدير المركزي. راجع سجل Convex قبل منح أي صلاحيات.
+      </section>
+    );
+  }
+
   return (
     <section
       dir="rtl"
