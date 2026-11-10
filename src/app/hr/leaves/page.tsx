@@ -12,7 +12,7 @@ const balanceTypes=types.filter(x=>x[0]!=="mission");
 const label=(v:string)=>types.find(x=>x[0]===v)?.[1]??v;
 
 export default function LeavesPage(){
- const year=new Date().getFullYear();
+ const [year,setYear]=useState(new Date().getFullYear());
  const data=useQuery(api.leaveManagement.listLeaveManagement,{year});
  const create=useMutation(api.leaveManagement.createLeaveRequest);
  const setBalance=useMutation(api.leaveManagement.setLeaveBalance);
@@ -39,7 +39,7 @@ export default function LeavesPage(){
  <label className="text-xs font-semibold">من تاريخ<input type="date" className={field} value={startDate} onChange={e=>setStartDate(e.target.value)}/></label><label className="text-xs font-semibold">إلى تاريخ<input type="date" className={field} value={endDate} onChange={e=>setEndDate(e.target.value)}/></label></div>
  {requestType==="mission"&&<label className="block text-xs font-semibold">جهة / موقع المأمورية<input className={field} value={destination} onChange={e=>setDestination(e.target.value)}/></label>}
  <button className={btn} disabled={busy||!employeeId||!reason.trim()||endDate<startDate} onClick={()=>void run(()=>create({employeeId:employeeId as Id<"employees">,requestType,startDate,endDate,reason,destination:destination||undefined,operationId:"leave-create-"+crypto.randomUUID()}),"تم تسجيل الطلب وهو بانتظار الاعتماد.")}>حفظ الطلب</button></div>
- <div className="space-y-3 rounded-xl border bg-white p-5"><h2 className="font-bold">إعداد رصيد الإجازات</h2><p className="text-xs leading-6 text-slate-500">يُدخل الرصيد المعتمد وفق لائحة الشركة. لا يفترض النظام استحقاقًا قانونيًا تلقائيًا قبل ضبط السياسة.</p>
+ <div className="space-y-3 rounded-xl border bg-white p-5"><h2 className="font-bold">إعداد رصيد الإجازات</h2><label className="block text-xs font-semibold">سنة الرصيد<input type="number" className={field} value={year} onChange={e=>setYear(Number(e.target.value))}/></label><p className="text-xs leading-6 text-slate-500">يُدخل الرصيد المعتمد وفق لائحة الشركة. لا يفترض النظام استحقاقًا قانونيًا تلقائيًا قبل ضبط السياسة.</p>
  <label className="block text-xs font-semibold">الموظف<select className={field} value={employeeId} onChange={e=>setEmployeeId(e.target.value)}><option value="">اختر الموظف</option>{employees.map(e=><option key={e._id} value={e._id}>{e.employeeNo} – {e.fullName}</option>)}</select></label>
  <div className="grid gap-3 sm:grid-cols-3"><label className="text-xs font-semibold">نوع الرصيد<select className={field} value={balanceType} onChange={e=>setBalanceType(e.target.value as typeof balanceType)}>{balanceTypes.map(t=><option key={t[0]} value={t[0]}>{t[1]}</option>)}</select></label><label className="text-xs font-semibold">الرصيد المقرر<input className={field} type="number" min="0" max="366" value={allocated} onChange={e=>setAllocated(e.target.value)}/></label><label className="text-xs font-semibold">تسوية (+/-)<input className={field} type="number" min="-366" max="366" value={adjustment} onChange={e=>setAdjustment(e.target.value)}/></label></div>
  <button className={btn} disabled={busy||!employeeId} onClick={()=>void run(()=>setBalance({employeeId:employeeId as Id<"employees">,year,leaveType:balanceType,allocatedDays:Number(allocated),adjustmentDays:Number(adjustment),operationId:"leave-balance-"+crypto.randomUUID()}),"تم تحديث رصيد الإجازة.")}>حفظ الرصيد</button></div></section>
