@@ -267,6 +267,23 @@ export default defineSchema({
     .index("by_eventId", ["eventId"])
     .index("by_eventType", ["eventType"]),
 
+
+  // Employee-specific attendance method overrides. No row means fingerprint (default).
+  attendancePolicies: defineTable({
+    employeeId: v.id("employees"),
+    method: v.union(v.literal("fingerprint"), v.literal("geofence"), v.literal("link")),
+    enabled: v.boolean(),
+    latitude: v.optional(v.number()),
+    longitude: v.optional(v.number()),
+    radiusMeters: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    assignedBy: v.id("users"),
+    assignedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employee", ["employeeId"])
+    .index("by_method_enabled", ["method", "enabled"]),
+
   // Production records are separate from the original Access Search.MDB source.
   // This table stores only records explicitly entered through the ERP UI.
   productionRecords: defineTable({
