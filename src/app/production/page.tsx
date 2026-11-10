@@ -1,7 +1,7 @@
 "use client";
 
+import BackToDashboard from "@/components/BackToDashboard";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import LogoutButton from "@/components/LogoutButton";
@@ -36,7 +36,6 @@ function toLocalDateTime(timestamp: number) {
 }
 
 export default function ProductionPage() {
-  const router = useRouter();
   const stations = useQuery(api.productionRecords.listMyStations);
   const accessDiagnostics = useQuery(api.productionRecords.getMyStationAccessDiagnostics);
   const [stationId, setStationId] = useState("");
@@ -133,10 +132,7 @@ export default function ProductionPage() {
             <p className="mt-2 text-sm text-slate-400">إدخال وتعديل سجلات الإنتاج في المحطات المصرح بها فقط.</p>
           </div>
           <LogoutButton className="inline-flex items-center gap-2 rounded-lg border border-rose-700 bg-slate-900 px-5 py-3 font-semibold text-rose-200 transition hover:bg-rose-950 focus:outline-none focus:ring-2 focus:ring-rose-500" />
-          <button type="button" onClick={() => router.push("/")} className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-5 py-3 font-semibold text-white transition hover:border-blue-500 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="العودة إلى الصفحة الرئيسية">
-            <span aria-hidden="true">→</span>
-            العودة للصفحة الرئيسية
-          </button>
+          <BackToDashboard />
         </header>
 
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
