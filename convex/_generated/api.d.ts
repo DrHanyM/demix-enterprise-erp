@@ -22,6 +22,7 @@ import type * as productionRecords from "../productionRecords.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as securityChecks from "../securityChecks.js";
+import type * as shifts from "../shifts.js";
 import type * as stations from "../stations.js";
 import type * as users from "../users.js";
 
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   "lib/audit": typeof lib_audit;
   "lib/auth": typeof lib_auth;
   securityChecks: typeof securityChecks;
+  shifts: typeof shifts;
   stations: typeof stations;
   users: typeof users;
 }>;
