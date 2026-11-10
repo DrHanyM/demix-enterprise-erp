@@ -1,6 +1,7 @@
 
 "use client";
 
+import BackToDashboard from "@/components/BackToDashboard";
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -141,7 +142,8 @@ export default function AuditLogsPage() {
         color: "#1e293b",
       }}
     >
-      <header>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" }}>
+        <div>
         <h1 style={{ fontSize: "28px", fontWeight: "bold" }}>
           سجل التدقيق والرقابة
         </h1>
@@ -149,6 +151,8 @@ export default function AuditLogsPage() {
         <p style={{ color: "#64748b", marginTop: "8px" }}>
           متابعة وتوثيق العمليات المنفذة داخل نظام DEMIX ENTERPRISE ERP.
         </p>
+        </div>
+        <BackToDashboard />
       </header>
 
       <section
