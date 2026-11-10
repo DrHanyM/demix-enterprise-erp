@@ -427,8 +427,9 @@ export const updateEmployee = mutation({
     if (!jobTitle || jobTitle.status !== "active" || (jobTitle.departmentId && jobTitle.departmentId !== departmentId)) {
       throw new Error("JOB_TITLE_DEPARTMENT_MISMATCH");
     }
+    const departmentChanged = args.departmentId !== undefined && args.departmentId !== current.departmentId;
     const stationId = args.stationId === undefined
-      ? (current.stationId ?? department.stationId)
+      ? (departmentChanged ? department.stationId : (current.stationId ?? department.stationId))
       : args.stationId;
     if (department.stationId && stationId !== department.stationId) {
       throw new Error("STATION_DEPARTMENT_MISMATCH");
@@ -453,7 +454,7 @@ export const updateEmployee = mutation({
     if (args.fullName !== undefined) patch.fullName = requireText(args.fullName, "employee_name");
     if (args.mobile !== undefined) patch.mobile = clean(args.mobile);
     if (args.email !== undefined) patch.email = email;
-    if (args.stationId !== undefined || stationId !== current.stationId) patch.stationId = stationId;
+    if (args.stationId !== undefined || departmentChanged || stationId !== current.stationId) patch.stationId = stationId;
     if (args.departmentId !== undefined) patch.departmentId = departmentId;
     if (args.jobTitleId !== undefined) patch.jobTitleId = jobTitleId;
     if (args.managerEmployeeId !== undefined) patch.managerEmployeeId = args.managerEmployeeId;
