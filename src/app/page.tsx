@@ -1,3 +1,5 @@
+import CurrentUserName from "@/components/CurrentUserName";
+import LogoutButton from "@/components/LogoutButton";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 
@@ -8,6 +10,10 @@ const menuGroups: {
   {
     title: "الرئيسية",
     items: [{ icon: "▦", label: "لوحة التحكم", active: true, href: "/" }],
+  },
+  {
+    title: "إدارة الإنتاج والتشغيل",
+    items: [{ icon: "▦", label: "التشغيل والإنتاج", href: "/production" }],
   },
   {
     title: "إدارة الموارد البشرية",
@@ -227,7 +233,7 @@ export default async function Home() {
                 م
               </div>
               <div>
-                <div className="text-xs font-bold">مدير النظام</div>
+                <div className="text-xs font-bold"><CurrentUserName /></div>
                 <div className="mt-1 text-[10px] text-slate-400">
                   الإدارة المركزية
                 </div>
@@ -253,6 +259,7 @@ export default async function Home() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              <LogoutButton />
               <div className="hidden items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 sm:flex">
                 <span className="text-teal-600">▣</span>
                 جميع المحطات
