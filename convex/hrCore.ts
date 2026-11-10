@@ -268,7 +268,7 @@ export const updateDepartment = mutation({
     const operationId = requireOperationId(args.operationId);
     const patch: any = { updatedAt: Date.now() };
     if (args.name !== undefined) patch.name = requireText(args.name, "department_name");
-    if (args.stationId !== undefined || stationId !== current.stationId) patch.stationId = stationId;
+    if (args.stationId !== undefined) patch.stationId = effectiveStationId;
     if (args.parentDepartmentId !== undefined) patch.parentDepartmentId = args.parentDepartmentId;
     if (args.description !== undefined) patch.description = clean(args.description);
     if (args.status !== undefined) patch.status = args.status;
@@ -453,7 +453,7 @@ export const updateEmployee = mutation({
     if (args.fullName !== undefined) patch.fullName = requireText(args.fullName, "employee_name");
     if (args.mobile !== undefined) patch.mobile = clean(args.mobile);
     if (args.email !== undefined) patch.email = email;
-    if (args.stationId !== undefined) patch.stationId = args.stationId;
+    if (args.stationId !== undefined || stationId !== current.stationId) patch.stationId = stationId;
     if (args.departmentId !== undefined) patch.departmentId = departmentId;
     if (args.jobTitleId !== undefined) patch.jobTitleId = jobTitleId;
     if (args.managerEmployeeId !== undefined) patch.managerEmployeeId = args.managerEmployeeId;
