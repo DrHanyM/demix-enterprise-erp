@@ -40,7 +40,7 @@ const menuGroups: {
       { icon: "⌂", label: "الشركات والمحطات", href: "/stations" },
       { icon: "⚙", label: "المستخدمون والصلاحيات", href: "/users" },
       { icon: "◈", label: "سجل المراجعة", href: "/audit-logs" },
-      { icon: "⚙", label: "إعدادات النظام" },
+      { icon: "⚙", label: "إعدادات النظام", href: "/settings" },
     ],
   },
 ];
