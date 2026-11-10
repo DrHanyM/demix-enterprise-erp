@@ -354,6 +354,122 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_startDate", ["startDate"]),
 
+
+  // Approved disciplinary actions and rewards; amounts are only posted to payroll after approval.
+  employeeActions: defineTable({
+    employeeId: v.id("employees"),
+    actionType: v.union(v.literal("sanction"), v.literal("reward")),
+    category: v.string(),
+    description: v.string(),
+    effectiveDate: v.string(),
+    amount: v.optional(v.number()),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"), v.literal("cancelled")),
+    reviewNote: v.optional(v.string()),
+    reviewedBy: v.optional(v.id("users")),
+    reviewedAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employee", ["employeeId"])
+    .index("by_status", ["status"])
+    .index("by_effectiveDate", ["effectiveDate"]),
+
+  employeeLoans: defineTable({
+    employeeId: v.id("employees"),
+    loanType: v.union(v.literal("advance"), v.literal("loan")),
+    requestedAmount: v.number(),
+    approvedAmount: v.optional(v.number()),
+    installmentsCount: v.number(),
+    installmentAmount: v.optional(v.number()),
+    firstInstallmentMonth: v.string(),
+    reason: v.string(),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("disbursed"), v.literal("rejected"), v.literal("closed")),
+    paidAmount: v.number(),
+    outstandingAmount: v.optional(v.number()),
+    reviewNote: v.optional(v.string()),
+    reviewedBy: v.optional(v.id("users")),
+    reviewedAt: v.optional(v.number()),
+    disbursedAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employee", ["employeeId"])
+    .index("by_status", ["status"])
+    .index("by_firstInstallmentMonth", ["firstInstallmentMonth"]),
+
+  loanRepayments: defineTable({
+    loanId: v.id("employeeLoans"),
+    employeeId: v.id("employees"),
+    amount: v.number(),
+    repaymentDate: v.string(),
+    method: v.string(),
+    reference: v.optional(v.string()),
+    recordedBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_loan", ["loanId"])
+    .index("by_employee", ["employeeId"])
+    .index("by_repaymentDate", ["repaymentDate"]),
+
+  compensationProfiles: defineTable({
+    employeeId: v.id("employees"),
+    currency: v.string(),
+    basicSalary: v.number(),
+    fixedAllowances: v.number(),
+    fixedDeductions: v.number(),
+    effectiveFrom: v.string(),
+    status: v.union(v.literal("active"), v.literal("inactive")),
+    updatedBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employee", ["employeeId"])
+    .index("by_status", ["status"]),
+
+  payrollRuns: defineTable({
+    periodStart: v.string(),
+    periodEnd: v.string(),
+    status: v.union(v.literal("draft"), v.literal("approved"), v.literal("closed")),
+    employeeCount: v.number(),
+    grossTotal: v.number(),
+    deductionTotal: v.number(),
+    netTotal: v.number(),
+    createdBy: v.id("users"),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    closedBy: v.optional(v.id("users")),
+    closedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_period", ["periodStart", "periodEnd"])
+    .index("by_status", ["status"]),
+
+  payrollEntries: defineTable({
+    payrollRunId: v.id("payrollRuns"),
+    employeeId: v.id("employees"),
+    currency: v.string(),
+    basicSalary: v.number(),
+    fixedAllowances: v.number(),
+    overtimeAmount: v.number(),
+    rewardsAmount: v.number(),
+    otherEarnings: v.number(),
+    fixedDeductions: v.number(),
+    absenceDeductions: v.number(),
+    sanctionsDeductions: v.number(),
+    loanDeductions: v.number(),
+    otherDeductions: v.number(),
+    grossPay: v.number(),
+    totalDeductions: v.number(),
+    netPay: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_run", ["payrollRunId"])
+    .index("by_employee", ["employeeId"])
+    .index("by_run_employee", ["payrollRunId", "employeeId"]),
+
   // Production records are separate from the original Access Search.MDB source.
   // This table stores only records explicitly entered through the ERP UI.
   productionRecords: defineTable({
