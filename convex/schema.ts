@@ -431,6 +431,7 @@ export default defineSchema({
   payrollRuns: defineTable({
     periodStart: v.string(),
     periodEnd: v.string(),
+    currency: v.string(),
     status: v.union(v.literal("draft"), v.literal("approved"), v.literal("closed")),
     employeeCount: v.number(),
     grossTotal: v.number(),
@@ -445,6 +446,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_period", ["periodStart", "periodEnd"])
+    .index("by_period_currency", ["periodStart", "periodEnd", "currency"])
     .index("by_status", ["status"]),
 
   payrollEntries: defineTable({
