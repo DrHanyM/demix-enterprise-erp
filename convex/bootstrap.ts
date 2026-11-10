@@ -17,6 +17,7 @@ const PERMISSIONS = [
   { code: "reports.view", name: "عرض التقارير", module: "reports", action: "view", description: "عرض التقارير التشغيلية والإدارية." },
   { code: "hr.structure.manage", name: "إدارة الشركات والهيكل التنظيمي", module: "hr.structure", action: "manage", description: "إدارة الشركات والإدارات والمسميات الوظيفية." },
   { code: "hr.employees.manage", name: "إدارة ملفات الموظفين", module: "hr.employees", action: "manage", description: "عرض وإدارة ملفات الموظفين وبياناتهم الأساسية." },
+  { code: "hr.leave.manage", name: "إدارة الإجازات والمأموريات", module: "hr.leave", action: "manage", description: "إدارة طلبات الإجازات والمأموريات والأرصدة واعتمادها." },
 ] as const;
 
 export const createFirstCentralAdmin = internalMutation({
