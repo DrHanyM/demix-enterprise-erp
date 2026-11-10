@@ -1,3 +1,4 @@
+import BackToDashboard from "@/components/BackToDashboard";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 
@@ -40,15 +41,13 @@ export default async function SystemSettingsPage() {
   return (
     <main dir="rtl" className="min-h-screen bg-slate-50 p-5 text-slate-800 sm:p-8">
       <div className="mx-auto max-w-5xl space-y-6">
+        <div className="flex justify-end"><BackToDashboard /></div>
         <header className="rounded-2xl bg-[#172b4d] p-6 text-white">
           <p className="text-xs font-semibold text-teal-300">DEMIX ENTERPRISE ERP</p>
           <h1 className="mt-2 text-2xl font-extrabold">إعدادات النظام</h1>
           <p className="mt-2 text-sm text-slate-200">
             مركز الوصول إلى إعدادات الإدارة والموارد البشرية والرقابة.
           </p>
-          <Link href="/" className="mt-4 inline-flex rounded-lg bg-white/10 px-4 py-2 text-sm hover:bg-white/20">
-            العودة إلى لوحة التحكم
-          </Link>
         </header>
 
         <section className="grid gap-4 md:grid-cols-2">
