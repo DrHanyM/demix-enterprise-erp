@@ -1,5 +1,6 @@
 "use client";
 
+import BackToDashboard from "@/components/BackToDashboard";
 import { useEffect, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -95,7 +96,7 @@ export default function AttendancePage() {
             <h1 className="mt-2 text-2xl font-extrabold">الحضور والانصراف – تخصيص وسائل الحضور</h1>
             <p className="mt-2 text-sm text-slate-500">البصمة هي الوسيلة الافتراضية. يمكن للمسؤول المخوّل تخصيص الموقع أو الرابط لموظفين محددين.</p>
           </div>
-          <a href="/" className="text-sm font-semibold text-blue-700 hover:underline">العودة إلى لوحة التحكم</a>
+          <BackToDashboard />
         </header>
 
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-7 text-blue-900">
