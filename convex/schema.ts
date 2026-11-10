@@ -266,4 +266,25 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventType", ["eventType"]),
+
+  // Production records are separate from the original Access Search.MDB source.
+  // This table stores only records explicitly entered through the ERP UI.
+  productionRecords: defineTable({
+    stationId: v.id("stations"),
+    productionAt: v.number(),
+    customerName: v.string(),
+    projectName: v.string(),
+    jobNo: v.string(),
+    concreteGrade: v.string(),
+    quantity: v.number(),
+    operatorName: v.string(),
+    notes: v.optional(v.string()),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_station_time", ["stationId", "productionAt"])
+    .index("by_station_job", ["stationId", "jobNo"]),
+
 });
