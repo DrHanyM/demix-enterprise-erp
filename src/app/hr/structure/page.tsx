@@ -1,5 +1,6 @@
 "use client";
 
+import BackToDashboard from "@/components/BackToDashboard";
 import { useEffect, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -255,7 +256,7 @@ export default function HrStructurePage() {
             <h1 className="mt-2 text-2xl font-extrabold">الهيكل التنظيمي</h1>
             <p className="mt-2 text-sm text-slate-500">إدارة الشركات والإدارات والوظائف وربطها بالمحطات.</p>
           </div>
-          <a href="/" className="text-sm font-semibold text-blue-700 hover:underline">العودة إلى لوحة التحكم</a>
+          <BackToDashboard />
         </header>
 
         {bootstrapError && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">تعذر تهيئة صلاحيات الوصول: {bootstrapError}</div>}
