@@ -39,6 +39,36 @@ async function ensureUniqueCode(
   if (rows.some((row: any) => row._id !== excludeId)) throw new Error("DUPLICATE_CODE");
 }
 
+async function validateDepartmentParent(
+  ctx: any,
+  companyId: Id<"companies">,
+  parentDepartmentId?: Id<"departments">,
+  currentDepartmentId?: Id<"departments">,
+  stationId?: Id<"stations">
+) {
+  let cursorId = parentDepartmentId;
+  const visited = new Set<string>();
+
+  while (cursorId) {
+    if (cursorId === currentDepartmentId) {
+      throw new Error("DEPARTMENT_PARENT_CYCLE");
+    }
+    if (visited.has(cursorId)) {
+      throw new Error("EXISTING_DEPARTMENT_PARENT_CYCLE");
+    }
+    visited.add(cursorId);
+
+    const parent = await ctx.db.get(cursorId);
+    if (!parent || parent.companyId !== companyId || parent.status !== "active") {
+      throw new Error("INVALID_PARENT_DEPARTMENT");
+    }
+    if (stationId && parent.stationId && parent.stationId !== stationId) {
+      throw new Error("PARENT_DEPARTMENT_STATION_MISMATCH");
+    }
+    cursorId = parent.parentDepartmentId;
+  }
+}
+
 async function record(
   ctx: any,
   stationId: Id<"stations"> | undefined,
@@ -100,12 +130,7 @@ export const createDepartment = mutation({
       const station = await ctx.db.get(args.stationId);
       if (!station || station.status !== "active") throw new Error("STATION_NOT_ACTIVE");
     }
-    if (args.parentDepartmentId) {
-      const parent = await ctx.db.get(args.parentDepartmentId);
-      if (!parent || parent.companyId !== args.companyId || parent.status !== "active") {
-        throw new Error("INVALID_PARENT_DEPARTMENT");
-      }
-    }
+    await validateDepartmentParent(ctx, args.companyId, args.parentDepartmentId, undefined, args.stationId);
     await ensureUniqueCode(ctx, "departments", code);
     const operationId = requireOperationId(args.operationId);
     const now = Date.now();
@@ -186,7 +211,7 @@ export const updateCompany = mutation({
         .withIndex("by_company", q => q.eq("companyId", args.companyId)).collect();
       const employees = await ctx.db.query("employees")
         .withIndex("by_company", q => q.eq("companyId", args.companyId)).collect();
-      if (departments.some(item => item.status === "active") || employees.some(item => item.status === "active")) {
+      if (departments.some(item => item.status === "active") || employees.some(item => item.status !== "terminated")) {
         throw new Error("COMPANY_HAS_ACTIVE_DEPENDENCIES");
       }
     }
@@ -220,24 +245,30 @@ export const updateDepartment = mutation({
       const station = await ctx.db.get(args.stationId);
       if (!station || station.status !== "active") throw new Error("STATION_NOT_ACTIVE");
     }
-    if (args.parentDepartmentId) {
-      if (args.parentDepartmentId === args.departmentId) throw new Error("DEPARTMENT_CANNOT_PARENT_ITSELF");
-      const parent = await ctx.db.get(args.parentDepartmentId);
-      if (!parent || parent.companyId !== current.companyId || parent.status !== "active") throw new Error("INVALID_PARENT_DEPARTMENT");
-    }
+    const effectiveStationId = args.stationId === undefined ? current.stationId : args.stationId;
+    const effectiveParentDepartmentId = args.parentDepartmentId === undefined
+      ? current.parentDepartmentId
+      : args.parentDepartmentId;
+    await validateDepartmentParent(
+      ctx,
+      current.companyId,
+      effectiveParentDepartmentId,
+      current._id,
+      effectiveStationId
+    );
     if (args.status === "inactive") {
       const employees = await ctx.db.query("employees")
         .withIndex("by_department", q => q.eq("departmentId", args.departmentId)).collect();
       const children = await ctx.db.query("departments")
         .withIndex("by_parent", q => q.eq("parentDepartmentId", args.departmentId)).collect();
-      if (employees.some(item => item.status === "active") || children.some(item => item.status === "active")) {
+      if (employees.some(item => item.status !== "terminated") || children.some(item => item.status === "active")) {
         throw new Error("DEPARTMENT_HAS_ACTIVE_DEPENDENCIES");
       }
     }
     const operationId = requireOperationId(args.operationId);
     const patch: any = { updatedAt: Date.now() };
     if (args.name !== undefined) patch.name = requireText(args.name, "department_name");
-    if (args.stationId !== undefined) patch.stationId = args.stationId;
+    if (args.stationId !== undefined || stationId !== current.stationId) patch.stationId = stationId;
     if (args.parentDepartmentId !== undefined) patch.parentDepartmentId = args.parentDepartmentId;
     if (args.description !== undefined) patch.description = clean(args.description);
     if (args.status !== undefined) patch.status = args.status;
@@ -266,7 +297,7 @@ export const updateJobTitle = mutation({
     if (args.status === "inactive") {
       const employees = await ctx.db.query("employees")
         .withIndex("by_jobTitle", q => q.eq("jobTitleId", args.jobTitleId)).collect();
-      if (employees.some(item => item.status === "active")) throw new Error("JOB_TITLE_HAS_ACTIVE_EMPLOYEES");
+      if (employees.some(item => item.status !== "terminated")) throw new Error("JOB_TITLE_HAS_ACTIVE_EMPLOYEES");
     }
     const operationId = requireOperationId(args.operationId);
     const patch: any = { updatedAt: Date.now() };
@@ -311,14 +342,17 @@ export const createEmployee = mutation({
         (jobTitle.departmentId && jobTitle.departmentId !== args.departmentId)) {
       throw new Error("JOB_TITLE_DEPARTMENT_MISMATCH");
     }
-    if (args.stationId) {
-      const station = await ctx.db.get(args.stationId);
+    const stationId = args.stationId ?? department.stationId;
+    if (department.stationId && stationId !== department.stationId) {
+      throw new Error("STATION_DEPARTMENT_MISMATCH");
+    }
+    if (stationId) {
+      const station = await ctx.db.get(stationId);
       if (!station || station.status !== "active") throw new Error("STATION_NOT_ACTIVE");
-      if (department.stationId && department.stationId !== args.stationId) throw new Error("STATION_DEPARTMENT_MISMATCH");
     }
     if (args.managerEmployeeId) {
       const manager = await ctx.db.get(args.managerEmployeeId);
-      if (!manager || manager.companyId !== args.companyId || manager.status === "terminated") {
+      if (!manager || manager.companyId !== args.companyId || manager.status !== "active") {
         throw new Error("INVALID_MANAGER");
       }
     }
@@ -339,12 +373,12 @@ export const createEmployee = mutation({
     const now = Date.now();
     const id = await ctx.db.insert("employees", {
       employeeNo, fullName, nationalId, email, mobile: clean(args.mobile), birthDate: clean(args.birthDate),
-      gender: args.gender, companyId: args.companyId, stationId: args.stationId,
+      gender: args.gender, companyId: args.companyId, stationId,
       departmentId: args.departmentId, jobTitleId: args.jobTitleId, managerEmployeeId: args.managerEmployeeId,
       employmentType: args.employmentType, hireDate, status: "active", notes: clean(args.notes),
       createdAt: now, updatedAt: now, createdBy: user._id,
     });
-    await record(ctx, args.stationId, "hr.employee.create", "employee", id, operationId,
+    await record(ctx, stationId, "hr.employee.create", "employee", id, operationId,
       { employeeNo, fullName, companyId: args.companyId, departmentId: args.departmentId, jobTitleId: args.jobTitleId });
     return { success: true, id };
   },
@@ -393,10 +427,15 @@ export const updateEmployee = mutation({
     if (!jobTitle || jobTitle.status !== "active" || (jobTitle.departmentId && jobTitle.departmentId !== departmentId)) {
       throw new Error("JOB_TITLE_DEPARTMENT_MISMATCH");
     }
-    if (args.stationId) {
-      const station = await ctx.db.get(args.stationId);
+    const stationId = args.stationId === undefined
+      ? (current.stationId ?? department.stationId)
+      : args.stationId;
+    if (department.stationId && stationId !== department.stationId) {
+      throw new Error("STATION_DEPARTMENT_MISMATCH");
+    }
+    if (stationId) {
+      const station = await ctx.db.get(stationId);
       if (!station || station.status !== "active") throw new Error("STATION_NOT_ACTIVE");
-      if (department.stationId && department.stationId !== args.stationId) throw new Error("STATION_DEPARTMENT_MISMATCH");
     }
     const email = args.email === undefined ? current.email : clean(args.email)?.toLowerCase();
     if (email && email !== current.email) {
@@ -405,7 +444,9 @@ export const updateEmployee = mutation({
     }
     if (args.managerEmployeeId) {
       const manager = await ctx.db.get(args.managerEmployeeId);
-      if (!manager || manager.companyId !== current.companyId || manager._id === current._id) throw new Error("INVALID_MANAGER");
+      if (!manager || manager.companyId !== current.companyId || manager._id === current._id || manager.status !== "active") {
+        throw new Error("INVALID_MANAGER");
+      }
     }
     const operationId = requireOperationId(args.operationId);
     const patch: any = { updatedAt: Date.now() };
@@ -419,7 +460,7 @@ export const updateEmployee = mutation({
     if (args.status !== undefined) patch.status = args.status;
     if (args.notes !== undefined) patch.notes = clean(args.notes);
     await ctx.db.patch(args.employeeId, patch);
-    await record(ctx, args.stationId ?? current.stationId, "hr.employee.update", "employee", args.employeeId, operationId,
+    await record(ctx, stationId, "hr.employee.update", "employee", args.employeeId, operationId,
       { changedFields: Object.keys(patch).filter(key => key !== "updatedAt"), previousStatus: current.status, newStatus: args.status ?? current.status });
     return { success: true, updated: true };
   },
