@@ -32,18 +32,19 @@ export const saveCompensationProfile=mutation({args:{employeeId:v.id("employees"
  await appendAuditLog(ctx,{stationId:employee.stationId,action:"payroll.profile.create",entityType:"compensation_profile",entityId:id,operationId:args.operationId,details:{basicSalary,fixedAllowances,fixedDeductions,currency,effectiveFrom:args.effectiveFrom}});
  return {success:true,id};
 }});
-export const createPayrollRun=mutation({args:{periodStart:v.string(),periodEnd:v.string(),operationId:v.string()},handler:async(ctx,args)=>{
+export const createPayrollRun=mutation({args:{periodStart:v.string(),periodEnd:v.string(),currency:v.string(),operationId:v.string()},handler:async(ctx,args)=>{
  const {user}=await requireCentralPermission(ctx,"payroll.manage");op(args.operationId);
  if(!DATE.test(args.periodStart)||!DATE.test(args.periodEnd)||args.periodEnd<args.periodStart)throw new Error("INVALID_PAYROLL_PERIOD");
  if(args.periodStart.slice(0,7)!==args.periodEnd.slice(0,7))throw new Error("PAYROLL_PERIOD_MUST_BE_WITHIN_ONE_MONTH");
- const duplicates=await ctx.db.query("payrollRuns").withIndex("by_period",q=>q.eq("periodStart",args.periodStart).eq("periodEnd",args.periodEnd)).take(2);
+ const currency=args.currency.trim().toUpperCase();if(!/^[A-Z]{3}$/.test(currency))throw new Error("INVALID_CURRENCY_CODE");
+ const duplicates=await ctx.db.query("payrollRuns").withIndex("by_period_currency",q=>q.eq("periodStart",args.periodStart).eq("periodEnd",args.periodEnd).eq("currency",currency)).take(2);
  if(duplicates.length)throw new Error("PAYROLL_RUN_ALREADY_EXISTS");
  const [employees,profiles,actions]=await Promise.all([ctx.db.query("employees").collect(),ctx.db.query("compensationProfiles").collect(),ctx.db.query("employeeActions").collect()]);
  const activeEmployees=employees.filter(e=>e.status==="active");
- const eligible=activeEmployees.map(employee=>({employee,profile:profiles.find(p=>p.employeeId===employee._id&&p.status==="active"&&p.effectiveFrom<=args.periodEnd)})).filter(x=>x.profile);
+ const eligible=activeEmployees.map(employee=>({employee,profile:profiles.find(p=>p.employeeId===employee._id&&p.status==="active"&&p.effectiveFrom<=args.periodEnd&&p.currency===currency)})).filter(x=>x.profile);
  if(!eligible.length)throw new Error("NO_EMPLOYEE_COMPENSATION_PROFILES");
  const now=Date.now();
- const runId=await ctx.db.insert("payrollRuns",{periodStart:args.periodStart,periodEnd:args.periodEnd,status:"draft",employeeCount:0,grossTotal:0,deductionTotal:0,netTotal:0,createdBy:user._id,createdAt:now,updatedAt:now});
+ const runId=await ctx.db.insert("payrollRuns",{periodStart:args.periodStart,periodEnd:args.periodEnd,currency,status:"draft",employeeCount:0,grossTotal:0,deductionTotal:0,netTotal:0,createdBy:user._id,createdAt:now,updatedAt:now});
  const entries=[];
  for(const {employee,profile} of eligible){
   const approved=actions.filter(a=>a.employeeId===employee._id&&a.status==="approved"&&a.effectiveDate>=args.periodStart&&a.effectiveDate<=args.periodEnd&&a.amount!==undefined);
