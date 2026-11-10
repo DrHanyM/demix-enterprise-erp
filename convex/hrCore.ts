@@ -4,6 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
 
+const ACTIVE = v.union(v.literal("active"), v.literal("inactive"));
 const EMPLOYEE_STATUSES = v.union(
   v.literal("active"),
   v.literal("inactive"),
