@@ -1,5 +1,6 @@
 "use client";
-import EnsureCentralAdminBootstrap from "../../../components/EnsureCentralAdminBootstrap";
+
+import BackToDashboard from "@/components/BackToDashboard";import EnsureCentralAdminBootstrap from "../../../components/EnsureCentralAdminBootstrap";
 import {useState} from "react";
 import {useMutation,useQuery} from "convex/react";
 import {api} from "../../../../convex/_generated/api";
@@ -13,7 +14,7 @@ export default function EmployeeActionsPage(){
  const [busy,setBusy]=useState(false),[notice,setNotice]=useState(""),[error,setError]=useState("");
  async function run(fn:()=>Promise<unknown>,ok:string){setBusy(true);setError("");setNotice("");try{await fn();setNotice(ok);}catch(e){setError(e instanceof Error?e.message:"تعذر تنفيذ العملية.");}finally{setBusy(false);}}
  return <main dir="rtl" className="min-h-screen bg-slate-50 p-4 text-slate-800 sm:p-7"><EnsureCentralAdminBootstrap /><div className="mx-auto max-w-7xl space-y-6">
- <header><p className="text-xs font-semibold text-teal-700">DEMIX ERP / HR</p><h1 className="mt-2 text-2xl font-extrabold">الجزاءات والمكافآت</h1><p className="mt-2 text-sm text-slate-500">تسجيل الإجراءات ومراجعتها واعتمادها قبل ترحيل الأثر المالي إلى الرواتب.</p><a href="/" className="mt-3 inline-block text-sm text-blue-700">العودة للرئيسية</a></header>
+ <header><p className="text-xs font-semibold text-teal-700">DEMIX ERP / HR</p><h1 className="mt-2 text-2xl font-extrabold">الجزاءات والمكافآت</h1><p className="mt-2 text-sm text-slate-500">تسجيل الإجراءات ومراجعتها واعتمادها قبل ترحيل الأثر المالي إلى الرواتب.</p><BackToDashboard /></header>
  {notice&&<div role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}{error&&<div role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
  <section className="rounded-xl border bg-white p-5 space-y-3"><h2 className="font-bold">إضافة جزاء أو مكافأة</h2><div className="grid gap-3 sm:grid-cols-2">
  <label className="text-xs font-semibold">الموظف<select className={field} value={employeeId} onChange={e=>setEmployeeId(e.target.value)}><option value="">اختر الموظف</option>{(data?.employees??[]).map(e=><option key={e._id} value={e._id}>{e.employeeNo} – {e.fullName}</option>)}</select></label>
