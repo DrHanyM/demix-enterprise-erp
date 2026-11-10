@@ -49,8 +49,9 @@ export const createFirstCentralAdmin = internalMutation({
         authSubject, email, fullName, status: "active",
         createdAt: now, updatedAt: now, createdBy: "SECURE_PREVIEW_BOOTSTRAP",
       });
-      user = await ctx.db.get(userId);
-      if (!user) throw new Error("BOOTSTRAP_USER_CREATE_FAILED");
+      const createdUser = await ctx.db.get(userId);
+      if (!createdUser) throw new Error("BOOTSTRAP_USER_CREATE_FAILED");
+      user = createdUser;
 
       const existingCentralRoles = await ctx.db.query("roles")
         .withIndex("by_code", q => q.eq("code", "CENTRAL_SUPER_ADMIN"))
