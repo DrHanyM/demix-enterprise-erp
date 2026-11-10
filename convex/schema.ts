@@ -284,6 +284,41 @@ export default defineSchema({
     .index("by_employee", ["employeeId"])
     .index("by_method_enabled", ["method", "enabled"]),
 
+  // Shift definitions and effective-dated employee assignments.
+  shifts: defineTable({
+    code: v.string(),
+    name: v.string(),
+    companyId: v.id("companies"),
+    stationId: v.optional(v.id("stations")),
+    startTime: v.string(),
+    endTime: v.string(),
+    breakMinutes: v.number(),
+    graceMinutes: v.number(),
+    weeklyDays: v.array(v.number()),
+    status: v.union(v.literal("active"), v.literal("inactive")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_code", ["code"])
+    .index("by_company", ["companyId"])
+    .index("by_station", ["stationId"])
+    .index("by_status", ["status"]),
+
+  employeeShiftAssignments: defineTable({
+    employeeId: v.id("employees"),
+    shiftId: v.id("shifts"),
+    effectiveFrom: v.string(),
+    effectiveTo: v.optional(v.string()),
+    status: v.union(v.literal("active"), v.literal("ended")),
+    assignedBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employee", ["employeeId"])
+    .index("by_shift", ["shiftId"])
+    .index("by_status", ["status"]),
+
   // Production records are separate from the original Access Search.MDB source.
   // This table stores only records explicitly entered through the ERP UI.
   productionRecords: defineTable({
