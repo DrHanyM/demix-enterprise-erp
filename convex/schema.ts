@@ -319,6 +319,41 @@ export default defineSchema({
     .index("by_shift", ["shiftId"])
     .index("by_status", ["status"]),
 
+
+  // Leave, absence and business mission requests. Balances are explicitly configured by HR.
+  leaveBalances: defineTable({
+    employeeId: v.id("employees"),
+    year: v.number(),
+    leaveType: v.union(v.literal("annual"), v.literal("sick"), v.literal("casual"), v.literal("unpaid")),
+    allocatedDays: v.number(),
+    adjustmentDays: v.number(),
+    usedDays: v.number(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+  })
+    .index("by_employee_year", ["employeeId", "year"])
+    .index("by_year_type", ["year", "leaveType"]),
+
+  leaveRequests: defineTable({
+    employeeId: v.id("employees"),
+    requestType: v.union(v.literal("annual"), v.literal("sick"), v.literal("casual"), v.literal("unpaid"), v.literal("mission")),
+    startDate: v.string(),
+    endDate: v.string(),
+    days: v.number(),
+    reason: v.string(),
+    destination: v.optional(v.string()),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"), v.literal("cancelled")),
+    reviewNote: v.optional(v.string()),
+    reviewedBy: v.optional(v.id("users")),
+    reviewedAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employee", ["employeeId"])
+    .index("by_status", ["status"])
+    .index("by_startDate", ["startDate"]),
+
   // Production records are separate from the original Access Search.MDB source.
   // This table stores only records explicitly entered through the ERP UI.
   productionRecords: defineTable({
