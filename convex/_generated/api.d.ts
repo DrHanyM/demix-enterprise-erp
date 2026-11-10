@@ -14,6 +14,8 @@ import type * as authTest from "../authTest.js";
 import type * as bootstrap from "../bootstrap.js";
 import type * as bootstrapAction from "../bootstrapAction.js";
 import type * as http from "../http.js";
+import type * as hrCore from "../hrCore.js";
+import type * as hrSetup from "../hrSetup.js";
 import type * as invitations from "../invitations.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_auth from "../lib/auth.js";
@@ -34,6 +36,8 @@ declare const fullApi: ApiFromModules<{
   bootstrap: typeof bootstrap;
   bootstrapAction: typeof bootstrapAction;
   http: typeof http;
+  hrCore: typeof hrCore;
+  hrSetup: typeof hrSetup;
   invitations: typeof invitations;
   "lib/audit": typeof lib_audit;
   "lib/auth": typeof lib_auth;
