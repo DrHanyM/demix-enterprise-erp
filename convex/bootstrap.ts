@@ -18,6 +18,10 @@ const PERMISSIONS = [
   { code: "hr.structure.manage", name: "إدارة الشركات والهيكل التنظيمي", module: "hr.structure", action: "manage", description: "إدارة الشركات والإدارات والمسميات الوظيفية." },
   { code: "hr.employees.manage", name: "إدارة ملفات الموظفين", module: "hr.employees", action: "manage", description: "عرض وإدارة ملفات الموظفين وبياناتهم الأساسية." },
   { code: "hr.leave.manage", name: "إدارة الإجازات والمأموريات", module: "hr.leave", action: "manage", description: "إدارة طلبات الإجازات والمأموريات والأرصدة واعتمادها." },
+  { code: "hr.actions.manage", name: "إدارة الجزاءات والمكافآت", module: "hr.actions", action: "manage", description: "تسجيل ومراجعة واعتماد الجزاءات والمكافآت." },
+  { code: "finance.advances.manage", name: "إدارة السلف والقروض", module: "finance.advances", action: "manage", description: "إدارة طلبات السلف والقروض والصرف والسداد." },
+  { code: "payroll.manage", name: "إدارة الرواتب", module: "payroll", action: "manage", description: "إعداد ملفات الأجور وإدارة مسيرات الرواتب واعتمادها وإقفالها." },
+  { code: "reports.financial.view", name: "عرض التقارير المالية", module: "reports.financial", action: "view", description: "عرض تقارير الرواتب والسلف والجزاءات والمكافآت." },
 ] as const;
 
 export const createFirstCentralAdmin = internalMutation({
