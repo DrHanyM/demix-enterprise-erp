@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { hasRolePermission, requireActiveUser, requireStationPermission } from "./lib/auth";
+import { hasRolePermission, requireActiveUser, requireStationPermission, requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
 
 const READ = "production.view";
