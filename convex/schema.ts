@@ -1,4 +1,4 @@
-﻿
+
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
@@ -161,6 +161,101 @@ export default defineSchema({
     .index("by_clerkInvitationId", ["clerkInvitationId"])
     .index("by_status", ["status"])
     .index("by_operationId", ["operationId"]),
+
+  // 11. HR Companies
+  companies: defineTable({
+    code: v.string(),
+    name: v.string(),
+    legalName: v.optional(v.string()),
+    taxNumber: v.optional(v.string()),
+    address: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    status: v.union(v.literal("active"), v.literal("inactive")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_code", ["code"])
+    .index("by_status", ["status"]),
+
+  // 12. HR Departments and hierarchical units
+  departments: defineTable({
+    code: v.string(),
+    name: v.string(),
+    companyId: v.id("companies"),
+    stationId: v.optional(v.id("stations")),
+    parentDepartmentId: v.optional(v.id("departments")),
+    managerEmployeeId: v.optional(v.id("employees")),
+    description: v.optional(v.string()),
+    status: v.union(v.literal("active"), v.literal("inactive")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_code", ["code"])
+    .index("by_company", ["companyId"])
+    .index("by_station", ["stationId"])
+    .index("by_parent", ["parentDepartmentId"])
+    .index("by_status", ["status"]),
+
+  // 13. Job titles / positions
+  jobTitles: defineTable({
+    code: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    departmentId: v.optional(v.id("departments")),
+    grade: v.optional(v.string()),
+    status: v.union(v.literal("active"), v.literal("inactive")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_code", ["code"])
+    .index("by_department", ["departmentId"])
+    .index("by_status", ["status"]),
+
+  // 14. Employee master records
+  employees: defineTable({
+    employeeNo: v.string(),
+    fullName: v.string(),
+    nationalId: v.optional(v.string()),
+    email: v.optional(v.string()),
+    mobile: v.optional(v.string()),
+    birthDate: v.optional(v.string()),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
+    companyId: v.id("companies"),
+    stationId: v.optional(v.id("stations")),
+    departmentId: v.id("departments"),
+    jobTitleId: v.id("jobTitles"),
+    managerEmployeeId: v.optional(v.id("employees")),
+    employmentType: v.union(
+      v.literal("permanent"),
+      v.literal("contract"),
+      v.literal("temporary"),
+      v.literal("daily")
+    ),
+    hireDate: v.string(),
+    endDate: v.optional(v.string()),
+    status: v.union(
+      v.literal("active"),
+      v.literal("inactive"),
+      v.literal("on_leave"),
+      v.literal("terminated")
+    ),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+  })
+    .index("by_employeeNo", ["employeeNo"])
+    .index("by_nationalId", ["nationalId"])
+    .index("by_email", ["email"])
+    .index("by_company", ["companyId"])
+    .index("by_station", ["stationId"])
+    .index("by_department", ["departmentId"])
+    .index("by_jobTitle", ["jobTitleId"])
+    .index("by_status", ["status"]),
 
   // 10. Clerk Webhook Event Tracking
   webhookEvents: defineTable({
