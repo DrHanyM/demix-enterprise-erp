@@ -12,7 +12,8 @@ const menuGroups: {
   {
     title: "إدارة الموارد البشرية",
     items: [
-      { icon: "♙", label: "ملفات الموظفين" },
+      { icon: "♙", label: "ملفات الموظفين", href: "/hr/employees" },
+      { icon: "▦", label: "الشركات والهيكل التنظيمي", href: "/hr/structure" },
       { icon: "◷", label: "الحضور والانصراف" },
       { icon: "▤", label: "الورديات والجداول" },
       { icon: "▧", label: "الإجازات والمأموريات" },
