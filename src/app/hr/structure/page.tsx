@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useEffect, useState } from "react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 
@@ -10,10 +10,23 @@ const buttonClass = "rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold te
 const secondaryButtonClass = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 disabled:opacity-50";
 
 export default function HrStructurePage() {
-  const companies = useQuery(api.hrCore.listCompanies, {});
-  const departments = useQuery(api.hrCore.listDepartments, {});
-  const jobTitles = useQuery(api.hrCore.listJobTitles, {});
-  const stations = useQuery(api.stations.listStations);
+  const ensurePreviewAdmin = useAction(api.bootstrapAction.bootstrapFirstCentralAdmin);
+  const [accessReady, setAccessReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    ensurePreviewAdmin({})
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setAccessReady(true);
+      });
+    return () => { active = false; };
+  }, [ensurePreviewAdmin]);
+
+  const companies = useQuery(api.hrCore.listCompanies, accessReady ? {} : "skip");
+  const departments = useQuery(api.hrCore.listDepartments, accessReady ? {} : "skip");
+  const jobTitles = useQuery(api.hrCore.listJobTitles, accessReady ? {} : "skip");
+  const stations = useQuery(api.stations.listStations, accessReady ? {} : "skip");
 
   const createCompany = useMutation(api.hrCore.createCompany);
   const updateCompany = useMutation(api.hrCore.updateCompany);
