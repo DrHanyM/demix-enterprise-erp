@@ -11,13 +11,6 @@ const HR_PERMISSIONS = [
     description: "إدارة الشركات والإدارات والأقسام والوظائف والمسميات الوظيفية.",
   },
   {
-    code: "hr.attendance.manage",
-    name: "إدارة الحضور ووسائل إثباته",
-    module: "hr.attendance",
-    action: "manage",
-    description: "تخصيص وسيلة الحضور للموظفين وإدارة إعداداتها.",
-  },
-  {
     code: "hr.employees.manage",
     name: "إدارة ملفات الموظفين",
     module: "hr.employees",
