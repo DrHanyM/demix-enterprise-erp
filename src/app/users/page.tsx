@@ -1,6 +1,7 @@
 
 "use client";
 
+import BackToDashboard from "@/components/BackToDashboard";
 import { useMemo, useState, type FormEvent } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
@@ -197,7 +198,8 @@ export default function UsersPage() {
     <main dir="rtl" className="min-h-screen bg-slate-950 p-6 text-white md:p-10">
       <div className="mx-auto max-w-7xl space-y-8">
 
-        <header>
+        <header className="flex flex-wrap items-start justify-between gap-4">
+          <div>
           <p className="text-sm text-blue-400">
             DEMIX ENTERPRISE ERP
           </p>
@@ -207,6 +209,8 @@ export default function UsersPage() {
           <p className="mt-2 text-slate-400">
             إدارة حسابات المستخدمين ودعوات الانضمام إلى النظام.
           </p>
+          </div>
+          <BackToDashboard />
         </header>
 
         {/* إحصاءات المستخدمين */}
