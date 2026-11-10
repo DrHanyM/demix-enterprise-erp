@@ -1,112 +1,84 @@
-
 import { query } from "./_generated/server";
+
+const REQUIRED_PERMISSIONS = [
+  "system.users.manage",
+  "system.stations.manage",
+  "audit.view",
+  "system.roles.manage",
+  "system.permissions.manage",
+  "system.settings.manage",
+  "production.view",
+  "production.manage",
+  "quality.view",
+  "quality.manage",
+  "inventory.view",
+  "inventory.manage",
+  "reports.view",
+  "hr.structure.manage",
+  "hr.employees.manage",
+] as const;
 
 export const verifyCentralAdmin = query({
   handler: async (ctx) => {
-    // 1. Verify authenticated identity
     const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("يجب تسجيل الدخول أولاً.");
 
-    if (!identity) {
-      throw new Error("يجب تسجيل الدخول أولاً.");
-    }
-
-    // 2. Find the current user
     const user = await ctx.db
       .query("users")
-      .withIndex("by_authSubject", (q) =>
-        q.eq("authSubject", identity.subject)
-      )
+      .withIndex("by_authSubject", q => q.eq("authSubject", identity.subject))
       .unique();
 
     if (!user) {
-      return {
-        verified: false,
-        message: "لم يتم العثور على سجل المستخدم في Convex.",
-      };
+      return { verified: false, message: "لم يتم العثور على سجل المستخدم في Convex." };
     }
 
-    // 3. Find active central role assignments
     const assignments = await ctx.db
       .query("centralUserRoles")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", q => q.eq("userId", user._id))
       .collect();
-
-    const activeAssignments = assignments.filter(
-      (item) => item.status === "active"
-    );
 
     let adminRole = null;
     let permissionCodes: string[] = [];
 
-    // 4. Find CENTRAL_SUPER_ADMIN role and its permissions
-    for (const assignment of activeAssignments) {
+    for (const assignment of assignments) {
+      if (assignment.status !== "active") continue;
       const role = await ctx.db.get(assignment.roleId);
+      if (role?.code !== "CENTRAL_SUPER_ADMIN" || role.status !== "active" || role.scope !== "central") continue;
 
-      if (role?.code === "CENTRAL_SUPER_ADMIN") {
-        adminRole = role;
-
-        const rolePermissions = await ctx.db
-          .query("rolePermissions")
-          .withIndex("by_role", (q) =>
-            q.eq("roleId", role._id)
-          )
-          .collect();
-
-        const permissions = await Promise.all(
-          rolePermissions.map((item) =>
-            ctx.db.get(item.permissionId)
-          )
-        );
-
-        permissionCodes = permissions
-          .filter((item) => item !== null)
-          .map((item) => item.code)
-          .sort();
-
-        break;
-      }
+      adminRole = role;
+      const rolePermissions = await ctx.db
+        .query("rolePermissions")
+        .withIndex("by_role", q => q.eq("roleId", role._id))
+        .collect();
+      const permissions = await Promise.all(rolePermissions.map(item => ctx.db.get(item.permissionId)));
+      permissionCodes = permissions
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+        .map(item => item.code)
+        .sort();
+      break;
     }
 
-    // 5. Verify bootstrap audit record
     const auditLog = await ctx.db
       .query("auditLogs")
-      .withIndex("by_operation", (q) =>
-        q.eq(
-          "operationId",
-          `bootstrap-central-super-admin-v1-${identity.subject}`
-        )
-      )
+      .withIndex("by_operation", q => q.eq("operationId", `bootstrap-central-super-admin-v1-${identity.subject}`))
       .unique();
 
-    // 6. Return verification report
+    const hasRequiredPermissions = REQUIRED_PERMISSIONS.every(code => permissionCodes.includes(code));
+
     return {
       verified:
         user.status === "active" &&
         adminRole !== null &&
-        adminRole.status === "active" &&
-        adminRole.scope === "central" &&
         adminRole.isSystem === true &&
-        permissionCodes.length === 13 &&
+        hasRequiredPermissions &&
         auditLog !== null,
-
-      user: {
-        fullName: user.fullName,
-        email: user.email,
-        status: user.status,
-      },
-
+      user: { fullName: user.fullName, email: user.email, status: user.status },
       role: adminRole
-        ? {
-            code: adminRole.code,
-            name: adminRole.name,
-            scope: adminRole.scope,
-            status: adminRole.status,
-            isSystem: adminRole.isSystem,
-          }
+        ? { code: adminRole.code, name: adminRole.name, scope: adminRole.scope, status: adminRole.status, isSystem: adminRole.isSystem }
         : null,
-
       permissionsCount: permissionCodes.length,
       permissions: permissionCodes,
+      missingPermissions: REQUIRED_PERMISSIONS.filter(code => !permissionCodes.includes(code)),
       auditLogExists: auditLog !== null,
     };
   },
