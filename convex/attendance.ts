@@ -12,7 +12,7 @@ const methodValidator = v.union(
 export const listAttendanceSetup = query({
   args: {},
   handler: async (ctx) => {
-    await requireCentralPermission(ctx, "hr.attendance.manage");
+    await requireCentralPermission(ctx, "system.permissions.manage");
     const employees = await ctx.db.query("employees").collect();
     const policies = await ctx.db.query("attendancePolicies").collect();
     const companies = await ctx.db.query("companies").collect();
@@ -47,7 +47,7 @@ export const setEmployeeAttendanceMethod = mutation({
     operationId: v.string(),
   },
   handler: async (ctx, args) => {
-    const { user } = await requireCentralPermission(ctx, "hr.attendance.manage");
+    const { user } = await requireCentralPermission(ctx, "system.permissions.manage");
     const employee = await ctx.db.get(args.employeeId);
     if (!employee || employee.status !== "active") throw new Error("EMPLOYEE_NOT_ACTIVE");
     if (args.operationId.trim().length < 10 || args.operationId.length > 200) throw new Error("INVALID_OPERATION_ID");
