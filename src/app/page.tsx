@@ -23,15 +23,15 @@ const menuGroups: {
       { icon: "◷", label: "الحضور والانصراف", href: "/hr/attendance" },
       { icon: "▤", label: "الورديات والجداول", href: "/hr/shifts" },
       { icon: "▧", label: "الإجازات والمأموريات", href: "/hr/leaves" },
-      { icon: "⚑", label: "الجزاءات والمكافآت" },
+      { icon: "⚑", label: "الجزاءات والمكافآت", href: "/hr/actions" },
     ],
   },
   {
     title: "الإدارة المالية",
     items: [
-      { icon: "＄", label: "السلف والقروض" },
-      { icon: "▣", label: "إدارة الرواتب" },
-      { icon: "▥", label: "التقارير المالية" },
+      { icon: "＄", label: "السلف والقروض", href: "/finance/advances" },
+      { icon: "▣", label: "إدارة الرواتب", href: "/finance/payroll" },
+      { icon: "▥", label: "التقارير المالية", href: "/finance/reports" },
     ],
   },
   {
