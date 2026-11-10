@@ -4,7 +4,6 @@ import type { Id } from "./_generated/dataModel";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
 
-const ACTIVE = v.union(v.literal("active"), v.literal("inactive"));
 const EMPLOYEE_STATUSES = v.union(
   v.literal("active"),
   v.literal("inactive"),
@@ -168,6 +167,120 @@ export const listJobTitles = query({
   },
 });
 
+
+// Controlled updates for organizational master data
+export const updateCompany = mutation({
+  args: {
+    companyId: v.id("companies"), name: v.optional(v.string()),
+    legalName: v.optional(v.string()), taxNumber: v.optional(v.string()),
+    address: v.optional(v.string()), phone: v.optional(v.string()),
+    email: v.optional(v.string()), status: v.optional(ACTIVE), operationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await requireCentralPermission(ctx, "hr.structure.manage");
+    const current = await ctx.db.get(args.companyId);
+    if (!current) throw new Error("COMPANY_NOT_FOUND");
+    if (args.status === "inactive") {
+      const departments = await ctx.db.query("departments")
+        .withIndex("by_company", q => q.eq("companyId", args.companyId)).collect();
+      const employees = await ctx.db.query("employees")
+        .withIndex("by_company", q => q.eq("companyId", args.companyId)).collect();
+      if (departments.some(item => item.status === "active") || employees.some(item => item.status === "active")) {
+        throw new Error("COMPANY_HAS_ACTIVE_DEPENDENCIES");
+      }
+    }
+    const operationId = requireOperationId(args.operationId);
+    const patch: any = { updatedAt: Date.now() };
+    if (args.name !== undefined) patch.name = requireText(args.name, "company_name");
+    if (args.legalName !== undefined) patch.legalName = clean(args.legalName);
+    if (args.taxNumber !== undefined) patch.taxNumber = clean(args.taxNumber);
+    if (args.address !== undefined) patch.address = clean(args.address);
+    if (args.phone !== undefined) patch.phone = clean(args.phone);
+    if (args.email !== undefined) patch.email = clean(args.email)?.toLowerCase();
+    if (args.status !== undefined) patch.status = args.status;
+    await ctx.db.patch(args.companyId, patch);
+    await record(ctx, undefined, "hr.company.update", "company", args.companyId, operationId,
+      { changedFields: Object.keys(patch).filter(key => key !== "updatedAt"), previousStatus: current.status, newStatus: args.status ?? current.status, actorUserId: user._id });
+    return { success: true, updated: true };
+  },
+});
+
+export const updateDepartment = mutation({
+  args: {
+    departmentId: v.id("departments"), name: v.optional(v.string()),
+    stationId: v.optional(v.id("stations")), parentDepartmentId: v.optional(v.id("departments")),
+    description: v.optional(v.string()), status: v.optional(ACTIVE), operationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireCentralPermission(ctx, "hr.structure.manage");
+    const current = await ctx.db.get(args.departmentId);
+    if (!current) throw new Error("DEPARTMENT_NOT_FOUND");
+    if (args.stationId) {
+      const station = await ctx.db.get(args.stationId);
+      if (!station || station.status !== "active") throw new Error("STATION_NOT_ACTIVE");
+    }
+    if (args.parentDepartmentId) {
+      if (args.parentDepartmentId === args.departmentId) throw new Error("DEPARTMENT_CANNOT_PARENT_ITSELF");
+      const parent = await ctx.db.get(args.parentDepartmentId);
+      if (!parent || parent.companyId !== current.companyId || parent.status !== "active") throw new Error("INVALID_PARENT_DEPARTMENT");
+    }
+    if (args.status === "inactive") {
+      const employees = await ctx.db.query("employees")
+        .withIndex("by_department", q => q.eq("departmentId", args.departmentId)).collect();
+      const children = await ctx.db.query("departments")
+        .withIndex("by_parent", q => q.eq("parentDepartmentId", args.departmentId)).collect();
+      if (employees.some(item => item.status === "active") || children.some(item => item.status === "active")) {
+        throw new Error("DEPARTMENT_HAS_ACTIVE_DEPENDENCIES");
+      }
+    }
+    const operationId = requireOperationId(args.operationId);
+    const patch: any = { updatedAt: Date.now() };
+    if (args.name !== undefined) patch.name = requireText(args.name, "department_name");
+    if (args.stationId !== undefined) patch.stationId = args.stationId;
+    if (args.parentDepartmentId !== undefined) patch.parentDepartmentId = args.parentDepartmentId;
+    if (args.description !== undefined) patch.description = clean(args.description);
+    if (args.status !== undefined) patch.status = args.status;
+    await ctx.db.patch(args.departmentId, patch);
+    await record(ctx, args.stationId ?? current.stationId, "hr.department.update", "department", args.departmentId, operationId,
+      { changedFields: Object.keys(patch).filter(key => key !== "updatedAt"), previousStatus: current.status, newStatus: args.status ?? current.status });
+    return { success: true, updated: true };
+  },
+});
+
+export const updateJobTitle = mutation({
+  args: {
+    jobTitleId: v.id("jobTitles"), name: v.optional(v.string()),
+    description: v.optional(v.string()), departmentId: v.optional(v.id("departments")),
+    grade: v.optional(v.string()), status: v.optional(ACTIVE), operationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireCentralPermission(ctx, "hr.structure.manage");
+    const current = await ctx.db.get(args.jobTitleId);
+    if (!current) throw new Error("JOB_TITLE_NOT_FOUND");
+    const departmentId = args.departmentId === undefined ? current.departmentId : args.departmentId;
+    if (departmentId) {
+      const department = await ctx.db.get(departmentId);
+      if (!department || department.status !== "active") throw new Error("DEPARTMENT_NOT_ACTIVE");
+    }
+    if (args.status === "inactive") {
+      const employees = await ctx.db.query("employees")
+        .withIndex("by_jobTitle", q => q.eq("jobTitleId", args.jobTitleId)).collect();
+      if (employees.some(item => item.status === "active")) throw new Error("JOB_TITLE_HAS_ACTIVE_EMPLOYEES");
+    }
+    const operationId = requireOperationId(args.operationId);
+    const patch: any = { updatedAt: Date.now() };
+    if (args.name !== undefined) patch.name = requireText(args.name, "job_title_name");
+    if (args.description !== undefined) patch.description = clean(args.description);
+    if (args.departmentId !== undefined) patch.departmentId = args.departmentId;
+    if (args.grade !== undefined) patch.grade = clean(args.grade);
+    if (args.status !== undefined) patch.status = args.status;
+    await ctx.db.patch(args.jobTitleId, patch);
+    await record(ctx, undefined, "hr.job_title.update", "job_title", args.jobTitleId, operationId,
+      { changedFields: Object.keys(patch).filter(key => key !== "updatedAt"), previousStatus: current.status, newStatus: args.status ?? current.status });
+    return { success: true, updated: true };
+  },
+});
+
 // Employee master file
 export const createEmployee = mutation({
   args: {
@@ -294,7 +407,7 @@ export const updateEmployee = mutation({
       if (!manager || manager.companyId !== current.companyId || manager._id === current._id) throw new Error("INVALID_MANAGER");
     }
     const operationId = requireOperationId(args.operationId);
-    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+    const patch: any = { updatedAt: Date.now() };
     if (args.fullName !== undefined) patch.fullName = requireText(args.fullName, "employee_name");
     if (args.mobile !== undefined) patch.mobile = clean(args.mobile);
     if (args.email !== undefined) patch.email = email;
