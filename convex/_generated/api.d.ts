@@ -18,6 +18,7 @@ import type * as http from "../http.js";
 import type * as hrCore from "../hrCore.js";
 import type * as hrSetup from "../hrSetup.js";
 import type * as invitations from "../invitations.js";
+import type * as leaveManagement from "../leaveManagement.js";
 import type * as productionRecords from "../productionRecords.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_auth from "../lib/auth.js";
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   hrCore: typeof hrCore;
   hrSetup: typeof hrSetup;
   invitations: typeof invitations;
+  leaveManagement: typeof leaveManagement;
   productionRecords: typeof productionRecords;
   "lib/audit": typeof lib_audit;
   "lib/auth": typeof lib_auth;
