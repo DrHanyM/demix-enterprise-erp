@@ -12,13 +12,18 @@ const secondaryButtonClass = "rounded-lg border border-slate-300 bg-white px-3 p
 export default function HrStructurePage() {
   const ensurePreviewAdmin = useAction(api.bootstrapAction.bootstrapFirstCentralAdmin);
   const [accessReady, setAccessReady] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState("");
 
   useEffect(() => {
     let active = true;
     ensurePreviewAdmin({})
-      .catch(() => undefined)
-      .finally(() => {
+      .then(() => {
         if (active) setAccessReady(true);
+      })
+      .catch((reason: unknown) => {
+        if (active) {
+          setBootstrapError(reason instanceof Error ? reason.message : "تعذر التحقق من صلاحيات المدير المركزي.");
+        }
       });
     return () => { active = false; };
   }, [ensurePreviewAdmin]);
@@ -252,6 +257,8 @@ export default function HrStructurePage() {
           </div>
           <a href="/" className="text-sm font-semibold text-blue-700 hover:underline">العودة إلى لوحة التحكم</a>
         </header>
+
+        {bootstrapError && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">تعذر تهيئة صلاحيات الوصول: {bootstrapError}</div>}
 
         {notice && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div>}
         {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>}
