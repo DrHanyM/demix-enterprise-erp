@@ -43,8 +43,7 @@ export const createFirstCentralAdmin = internalMutation({
 
     if (!user) {
       const anyUsers = await ctx.db.query("users").take(1);
-      const anyRoles = await ctx.db.query("roles").take(1);
-      if (anyUsers.length || anyRoles.length) throw new Error("BOOTSTRAP_ALREADY_CLOSED");
+      if (anyUsers.length) throw new Error("BOOTSTRAP_USER_NOT_FOUND_IN_EXISTING_DIRECTORY");
 
       const userId = await ctx.db.insert("users", {
         authSubject, email, fullName, status: "active",
@@ -53,7 +52,12 @@ export const createFirstCentralAdmin = internalMutation({
       user = await ctx.db.get(userId);
       if (!user) throw new Error("BOOTSTRAP_USER_CREATE_FAILED");
 
-      const roleId = await ctx.db.insert("roles", {
+      const existingCentralRoles = await ctx.db.query("roles")
+        .withIndex("by_code", q => q.eq("code", "CENTRAL_SUPER_ADMIN"))
+        .take(2);
+      if (existingCentralRoles.length > 1) throw new Error("BOOTSTRAP_DUPLICATE_CENTRAL_ROLE");
+
+      const roleId = existingCentralRoles[0]?._id ?? await ctx.db.insert("roles", {
         code: "CENTRAL_SUPER_ADMIN",
         name: "المسؤول الأعلى للإدارة المركزية",
         description: "الدور الأعلى لإدارة النظام مركزيًا.",
