@@ -22,14 +22,10 @@ export const saveCompensationProfile=mutation({args:{employeeId:v.id("employees"
  const profiles=await ctx.db.query("compensationProfiles").withIndex("by_employee",q=>q.eq("employeeId",args.employeeId)).collect();
  const current=profiles.find(p=>p.status==="active");
  const now=Date.now();
- if(current){
-  if(args.effectiveFrom<current.effectiveFrom)throw new Error("PROFILE_DATE_CANNOT_MOVE_BACKWARD");
-  await ctx.db.patch(current._id,{currency,basicSalary,fixedAllowances,fixedDeductions,effectiveFrom:args.effectiveFrom,updatedBy:user._id,updatedAt:now});
-  await appendAuditLog(ctx,{stationId:employee.stationId,action:"payroll.profile.update",entityType:"compensation_profile",entityId:current._id,operationId:args.operationId,details:{basicSalary,fixedAllowances,fixedDeductions,currency,effectiveFrom:args.effectiveFrom}});
-  return {success:true,id:current._id};
- }
+ if(current&&args.effectiveFrom<=current.effectiveFrom)throw new Error("PROFILE_DATE_MUST_BE_AFTER_CURRENT_PROFILE");
+ if(current)await ctx.db.patch(current._id,{status:"inactive",updatedAt:now,updatedBy:user._id});
  const id=await ctx.db.insert("compensationProfiles",{employeeId:args.employeeId,currency,basicSalary,fixedAllowances,fixedDeductions,effectiveFrom:args.effectiveFrom,status:"active",updatedBy:user._id,createdAt:now,updatedAt:now});
- await appendAuditLog(ctx,{stationId:employee.stationId,action:"payroll.profile.create",entityType:"compensation_profile",entityId:id,operationId:args.operationId,details:{basicSalary,fixedAllowances,fixedDeductions,currency,effectiveFrom:args.effectiveFrom}});
+ await appendAuditLog(ctx,{stationId:employee.stationId,action:current?"payroll.profile.version.create":"payroll.profile.create",entityType:"compensation_profile",entityId:id,operationId:args.operationId,details:{previousProfileId:current?._id,basicSalary,fixedAllowances,fixedDeductions,currency,effectiveFrom:args.effectiveFrom}});
  return {success:true,id};
 }});
 export const createPayrollRun=mutation({args:{periodStart:v.string(),periodEnd:v.string(),currency:v.string(),operationId:v.string()},handler:async(ctx,args)=>{
@@ -41,7 +37,7 @@ export const createPayrollRun=mutation({args:{periodStart:v.string(),periodEnd:v
  if(duplicates.length)throw new Error("PAYROLL_RUN_ALREADY_EXISTS");
  const [employees,profiles,actions]=await Promise.all([ctx.db.query("employees").collect(),ctx.db.query("compensationProfiles").collect(),ctx.db.query("employeeActions").collect()]);
  const activeEmployees=employees.filter(e=>e.status==="active");
- const eligible=activeEmployees.map(employee=>({employee,profile:profiles.find(p=>p.employeeId===employee._id&&p.status==="active"&&p.effectiveFrom<=args.periodEnd&&p.currency===currency)})).filter(x=>x.profile);
+ const eligible=activeEmployees.map(employee=>({employee,profile:profiles.filter(p=>p.employeeId===employee._id&&p.effectiveFrom<=args.periodEnd&&p.currency===currency).sort((a,b)=>b.effectiveFrom.localeCompare(a.effectiveFrom))[0]})).filter(x=>x.profile);
  if(!eligible.length)throw new Error("NO_EMPLOYEE_COMPENSATION_PROFILES");
  const now=Date.now();
  const runId=await ctx.db.insert("payrollRuns",{periodStart:args.periodStart,periodEnd:args.periodEnd,currency,status:"draft",employeeCount:0,grossTotal:0,deductionTotal:0,netTotal:0,createdBy:user._id,createdAt:now,updatedAt:now});
