@@ -21,7 +21,7 @@ const menuGroups: {
       { icon: "♙", label: "ملفات الموظفين", href: "/hr/employees" },
       { icon: "▦", label: "الشركات والهيكل التنظيمي", href: "/hr/structure" },
       { icon: "◷", label: "الحضور والانصراف", href: "/hr/attendance" },
-      { icon: "▤", label: "الورديات والجداول" },
+      { icon: "▤", label: "الورديات والجداول", href: "/hr/shifts" },
       { icon: "▧", label: "الإجازات والمأموريات" },
       { icon: "⚑", label: "الجزاءات والمكافآت" },
     ],
