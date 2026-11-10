@@ -1,5 +1,6 @@
 "use client";
 
+import EnsureCentralAdminBootstrap from "../../../components/EnsureCentralAdminBootstrap";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -29,7 +30,7 @@ export default function LeavesPage(){
  const [busy,setBusy]=useState(false); const [notice,setNotice]=useState(""); const [error,setError]=useState("");
  const employees=useMemo(()=>data?.employees??[],[data]);
  async function run(fn:()=>Promise<unknown>,ok:string){setBusy(true);setError("");setNotice("");try{await fn();setNotice(ok);}catch(e){setError(e instanceof Error?e.message:"تعذر تنفيذ العملية.");}finally{setBusy(false);}}
- return <main dir="rtl" className="min-h-screen bg-slate-50 p-4 text-slate-800 sm:p-7"><div className="mx-auto max-w-7xl space-y-6">
+ return <main dir="rtl" className="min-h-screen bg-slate-50 p-4 text-slate-800 sm:p-7"><EnsureCentralAdminBootstrap /><div className="mx-auto max-w-7xl space-y-6">
  <header><p className="text-xs font-semibold text-teal-700">DEMIX ERP / HR</p><h1 className="mt-2 text-2xl font-extrabold">الإجازات والمأموريات</h1><p className="mt-2 text-sm text-slate-500">طلبات الإجازة والمأمورية، أرصدة سنوية، ومراجعة واعتماد الطلبات.</p><a href="/" className="mt-3 inline-block text-sm text-blue-700">العودة للرئيسية</a></header>
  {notice&&<div role="status" className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}{error&&<div role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
  <section className="grid gap-5 xl:grid-cols-2">
