@@ -1,5 +1,6 @@
 "use client";
-import EnsureCentralAdminBootstrap from "../../../components/EnsureCentralAdminBootstrap";
+
+import BackToDashboard from "@/components/BackToDashboard";import EnsureCentralAdminBootstrap from "../../../components/EnsureCentralAdminBootstrap";
 import {useState} from "react";
 import {useQuery} from "convex/react";
 import {api} from "../../../../convex/_generated/api";
@@ -10,7 +11,7 @@ export default function FinancialReportsPage(){
  const data=useQuery(api.financialReports.getFinancialSummary,{from,to});
  const cards=data?[...data.payroll.currencyTotals.flatMap(x=>[["إجمالي الرواتب ("+x.currency+")",n(x.grossTotal)],["استقطاعات الرواتب ("+x.currency+")",n(x.deductionTotal)],["صافي الرواتب ("+x.currency+")",n(x.netTotal)]]),["رصيد القروض القائم",n(data.loans.outstandingTotal)],["السداد خلال الفترة",n(data.loans.repaidInRange)],["المكافآت المعتمدة",n(data.actions.rewardsTotal)],["الجزاءات المالية",n(data.actions.sanctionsTotal)]]:[];
  return <main dir="rtl" className="min-h-screen bg-slate-50 p-4 text-slate-800 sm:p-7"><EnsureCentralAdminBootstrap /><div className="mx-auto max-w-7xl space-y-6">
- <header><p className="text-xs font-semibold text-teal-700">DEMIX ERP / FINANCE</p><h1 className="mt-2 text-2xl font-extrabold">التقارير المالية</h1><p className="mt-2 text-sm text-slate-500">مؤشرات مستخرجة من مسيرات الرواتب المقفلة والسلف والسداد والجزاءات والمكافآت المعتمدة.</p><a href="/" className="mt-3 inline-block text-sm text-blue-700">العودة للرئيسية</a></header>
+ <header><p className="text-xs font-semibold text-teal-700">DEMIX ERP / FINANCE</p><h1 className="mt-2 text-2xl font-extrabold">التقارير المالية</h1><p className="mt-2 text-sm text-slate-500">مؤشرات مستخرجة من مسيرات الرواتب المقفلة والسلف والسداد والجزاءات والمكافآت المعتمدة.</p><BackToDashboard /></header>
  <section className="flex flex-wrap items-end gap-3 rounded-xl border bg-white p-5"><label className="text-xs font-semibold">من تاريخ<input type="date" className={f+" block mt-1"} value={from} onChange={e=>setFrom(e.target.value)}/></label><label className="text-xs font-semibold">إلى تاريخ<input type="date" className={f+" block mt-1"} value={to} onChange={e=>setTo(e.target.value)}/></label></section>
  {!data?<p className="text-sm text-slate-500">جارٍ تحميل التقرير...</p>:<>
  <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label,value])=><article key={label} className="rounded-xl border bg-white p-5"><p className="text-xs text-slate-500">{label}</p><p className="mt-3 text-xl font-extrabold">{value}</p></article>)}</section>
