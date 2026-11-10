@@ -3,11 +3,12 @@ import { mutation, query } from "./_generated/server";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
 
-const DATE = /^\\d{4}-\\d{2}-\\d{2}$/;
-const TIME = /^(?:[01]\\d|2[0-3]):[0-5]\\d$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 function validateDate(value: string, code: string) {
-  if (!DATE.test(value) || Number.isNaN(Date.parse(value + "T00:00:00Z"))) throw new Error(code);
+  const parsed = new Date(value + "T00:00:00Z");
+  if (!DATE.test(value) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new Error(code);
 }
 function validateTime(value: string, code: string) {
   if (!TIME.test(value)) throw new Error(code);
