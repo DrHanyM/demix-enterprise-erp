@@ -1,5 +1,6 @@
 "use client";
 
+import BackToDashboard from "@/components/BackToDashboard";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -55,7 +56,7 @@ export default function ShiftsPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div><p className="text-xs font-semibold text-teal-700">DEMIX ERP / HR</p><h1 className="mt-2 text-2xl font-extrabold">الورديات والجداول</h1>
         <p className="mt-2 text-sm text-slate-500">تعريف الورديات وتحديد أيام العمل وفترات سريان تكليف كل موظف.</p></div>
-        <a href="/" className="text-sm font-semibold text-blue-700">العودة للوحة التحكم</a>
+        <BackToDashboard />
       </header>
       {notice && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
       {error && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
