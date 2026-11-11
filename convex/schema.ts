@@ -496,6 +496,7 @@ export default defineSchema({
   // Immutable source mirror for station production imports; kept separate from manually entered ERP records.
   stationProductionImports: defineTable({
     stationId: v.id("stations"),
+    machineId: v.optional(v.string()),
     sourceRecordId: v.string(),
     sourceHash: v.string(),
     productionAt: v.number(),
@@ -509,11 +510,13 @@ export default defineSchema({
     sourceUpdatedAt: v.optional(v.number()),
   })
     .index("by_station_source", ["stationId", "sourceRecordId"])
+    .index("by_station_machine_source", ["stationId", "machineId", "sourceRecordId"])
     .index("by_station_time", ["stationId", "productionAt"]),
 
   stationSyncBatches: defineTable({
     batchId: v.string(),
     stationId: v.id("stations"),
+    machineId: v.optional(v.string()),
     received: v.number(),
     inserted: v.number(),
     updated: v.number(),
