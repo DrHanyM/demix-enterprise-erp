@@ -100,15 +100,6 @@ export const seedInitialStations = mutation({
 
       created += 1;
       createdIds.push(String(stationId));
-      existingStations.push({
-        _id: stationId,
-        _creationTime: now,
-        code: item.code,
-        name: item.name,
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      });
     }
 
     await appendAuditLog(ctx, {
@@ -131,7 +122,8 @@ export const seedInitialStations = mutation({
     };
   },
 });
-\nconst STATION_ACTION = "station.create";
+
+const STATION_ACTION = "station.create";
 const STATION_ENTITY = "station";
 
 // 1. Create a new station securely.
