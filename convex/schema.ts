@@ -536,5 +536,16 @@ export default defineSchema({
     recordsUpdated: v.number(),
     lastError: v.optional(v.string()),
   })
+    .index("by_station", ["stationId"]),
+
+  // Only a hash is stored. Each station owns one active connector credential.
+  stationConnectorCredentials: defineTable({
+    stationId: v.id("stations"),
+    tokenHash: v.string(),
+    active: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
     .index("by_station", ["stationId"])
+    .index("by_tokenHash", ["tokenHash"])
 });

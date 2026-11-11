@@ -14,7 +14,10 @@ const menuGroups: {
   },
   {
     title: "إدارة الإنتاج والتشغيل",
-    items: [{ icon: "▦", label: "التشغيل والإنتاج", href: "/production" }],
+    items: [
+      { icon: "▦", label: "التشغيل والإنتاج", href: "/production" },
+      { icon: "⇄", label: "أدوات المحطات والمزامنة", href: "/stations/tools" },
+    ],
   },
   {
     title: "إدارة الموارد البشرية",

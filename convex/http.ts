@@ -38,19 +38,24 @@ http.route({
   path: "/station-sync",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const expectedSecret = process.env.STATION_CONNECTOR_TOKEN;
-    const authorization = request.headers.get("authorization");
-    if (!expectedSecret || !authorization || !constantTimeEqual(authorization, `Bearer ${expectedSecret}`)) return new Response("Unauthorized", { status: 401 });
+    const authorization = request.headers.get("authorization") ?? "";
+    if (!authorization.startsWith("Bearer ")) return new Response("Unauthorized", { status: 401 });
+    const token = authorization.slice(7).trim();
+    if (!token || token.length > 512) return new Response("Unauthorized", { status: 401 });
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+    const tokenHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+    const credential = await ctx.runQuery(internal.stationSync.authenticateConnectorToken, { tokenHash });
+    if (!credential) return new Response("Unauthorized", { status: 401 });
+
     const rawBody = await request.text();
     if (rawBody.length > 256_000) return new Response("Payload too large", { status: 413 });
     let payload: unknown;
     try { payload = JSON.parse(rawBody); } catch { return new Response("Invalid JSON", { status: 400 }); }
     if (!isObject(payload) || typeof payload.stationCode !== "string" || typeof payload.machineId !== "string" || typeof payload.batchId !== "string" || !Array.isArray(payload.records) || payload.records.length < 1 || payload.records.length > 100) return new Response("Invalid station batch", { status: 400 });
+    if (payload.stationCode !== credential.stationCode) return new Response("Station credential mismatch", { status: 403 });
     try {
       const result = await ctx.runMutation(internal.stationSync.ingestBatch, {
-        stationCode: payload.stationCode,
-        machineId: payload.machineId,
-        batchId: payload.batchId,
+        stationCode: credential.stationCode, machineId: payload.machineId, batchId: payload.batchId,
         records: payload.records as Array<{
           sourceRecordId: string; sourceHash: string; productionAt: number;
           customerName?: string; projectName?: string; jobNo?: string;
@@ -60,20 +65,13 @@ http.route({
       return Response.json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : "SYNC_FAILED";
-      try {
-        await ctx.runMutation(internal.stationSync.recordFailure, {
-          stationCode: payload.stationCode,
-          message,
-        });
-      } catch (statusError) {
-        console.error("Could not persist station sync failure:", statusError);
-      }
+      try { await ctx.runMutation(internal.stationSync.recordFailure, { stationCode: credential.stationCode, message }); }
+      catch (statusError) { console.error("Could not persist station sync failure:", statusError); }
       console.error("Station sync batch rejected:", error);
       return Response.json({ success: false, error: message }, { status: 400 });
     }
   }),
 });
-
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { requireCentralPermission } from "./lib/auth";
+import { appendAuditLog } from "./lib/audit";
 import { internal } from "./_generated/api";
 
 const importedRecord = v.object({
@@ -14,6 +15,43 @@ const importedRecord = v.object({
   quantity: v.optional(v.number()),
   operatorName: v.optional(v.string()),
   sourceUpdatedAt: v.optional(v.number()),
+});
+
+export const issueConnectorToken = mutation({
+  args: { stationId: v.id("stations"), tokenHash: v.string(), operationId: v.string() },
+  handler: async (ctx, args) => {
+    const { user } = await requireCentralPermission(ctx, "system.stations.manage");
+    if (!/^[a-f0-9]{64}$/.test(args.tokenHash)) throw new Error("INVALID_TOKEN_HASH");
+    if (!args.operationId.trim() || args.operationId.length > 200) throw new Error("INVALID_OPERATION_ID");
+    const station = await ctx.db.get(args.stationId);
+    if (!station || station.status !== "active") throw new Error("STATION_NOT_FOUND_OR_INACTIVE");
+    const owner = await ctx.db.query("stationConnectorCredentials")
+      .withIndex("by_tokenHash", q => q.eq("tokenHash", args.tokenHash)).unique();
+    if (owner && owner.stationId !== station._id) throw new Error("TOKEN_HASH_ALREADY_ASSIGNED");
+    const existing = await ctx.db.query("stationConnectorCredentials")
+      .withIndex("by_station", q => q.eq("stationId", station._id)).unique();
+    const now = Date.now();
+    if (existing) await ctx.db.patch(existing._id, { tokenHash: args.tokenHash, active: true, updatedAt: now });
+    else await ctx.db.insert("stationConnectorCredentials", { stationId: station._id, tokenHash: args.tokenHash, active: true, createdAt: now, updatedAt: now });
+    await appendAuditLog(ctx, {
+      stationId: station._id, action: "station.connector_token.rotate",
+      entityType: "station_connector_credential", entityId: String(station._id),
+      operationId: args.operationId, details: { stationCode: station.code, changedBy: String(user._id) },
+    });
+    return { success: true, stationCode: station.code, stationName: station.name };
+  },
+});
+
+export const authenticateConnectorToken = internalQuery({
+  args: { tokenHash: v.string() },
+  handler: async (ctx, args) => {
+    const credential = await ctx.db.query("stationConnectorCredentials")
+      .withIndex("by_tokenHash", q => q.eq("tokenHash", args.tokenHash)).unique();
+    if (!credential || !credential.active) return null;
+    const station = await ctx.db.get(credential.stationId);
+    if (!station || station.status !== "active") return null;
+    return { stationId: station._id, stationCode: station.code };
+  },
 });
 
 export const ingestBatch = internalMutation({

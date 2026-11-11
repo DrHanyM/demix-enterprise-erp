@@ -2,6 +2,7 @@
 "use client";
 
 import BackToDashboard from "@/components/BackToDashboard";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
@@ -192,7 +193,7 @@ export default function StationsPage() {
           إضافة واستعراض وتعديل بيانات محطات الشركة وإدارة حالتها.
         </p>
         </div>
-        <BackToDashboard />
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}><Link href="/stations/tools" style={{ padding: "9px 13px", border: "1px solid #99f6e4", borderRadius: "8px", color: "#0f766e", background: "#f0fdfa", textDecoration: "none", fontSize: "13px", fontWeight: 700 }}>أدوات المحطات والمزامنة</Link><BackToDashboard /></div>
       </header>
 
       <section
