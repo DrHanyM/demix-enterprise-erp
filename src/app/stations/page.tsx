@@ -11,11 +11,13 @@ export default function StationsPage() {
   const { user: clerkUser } = useUser();
   const stations = useQuery(api.stations.listStations);
 
-  const createStation = useMutation(api.stations.createStation);\n  const seedInitialStations = useMutation(api.stations.seedInitialStations);
+  const createStation = useMutation(api.stations.createStation);
+  const seedInitialStations = useMutation(api.stations.seedInitialStations);
   const updateStation = useMutation(api.stations.updateStation);
   const setStationStatus = useMutation(api.stations.setStationStatus);
 
-  const [name, setName] = useState("");\n  const [seeding, setSeeding] = useState(false);
+  const [name, setName] = useState("");
+  const [seeding, setSeeding] = useState(false);
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<Id<"stations"> | null>(null);
   const [editingName, setEditingName] = useState("");
