@@ -1,6 +1,7 @@
 import CurrentUserName from "@/components/CurrentUserName";
 import LogoutButton from "@/components/LogoutButton";
 import Link from "next/link";
+import StationMasterSummary from "../components/StationMasterSummary";
 import { auth } from "@clerk/nextjs/server";
 
 const menuGroups: {
@@ -89,7 +90,7 @@ const attendance = [
 const activities = [
   {
     title: "طلب إجازة جديد",
-    detail: "طلب إجازة سنوية – محطة القاهرة",
+    detail: "طلب إجازة سنوية – إحدى المحطات",
     time: "منذ 15 دقيقة",
     status: "بانتظار المراجعة",
     tone: "orange",
@@ -117,13 +118,7 @@ const activities = [
   },
 ];
 
-const stations = [
-  { name: "محطة القاهرة", employees: 386, attendance: 92 },
-  { name: "محطة الإسكندرية", employees: 294, attendance: 89 },
-  { name: "محطة العاشر من رمضان", employees: 218, attendance: 87 },
-  { name: "محطة بني سويف", employees: 172, attendance: 91 },
-  { name: "محطة أخرى", employees: 178, attendance: 84 },
-];
+
 
 function SectionTitle({
   title,
@@ -409,30 +404,11 @@ export default async function Home() {
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <SectionTitle
-                  title="أداء المحطات"
-                  subtitle="توزيع الموظفين ونسبة الحضور – بيانات تجريبية"
+                  title="محطات الشركة"
+                  subtitle="قائمة المحطات الفعلية من السجل المركزي المشترك"
                 />
 
-                <div className="mt-5 space-y-5">
-                  {stations.map((station) => (
-                    <div key={station.name}>
-                      <div className="mb-2 flex items-center justify-between gap-2 text-xs">
-                        <span className="font-semibold text-slate-700">
-                          {station.name}
-                        </span>
-                        <span className="text-slate-500">
-                          {station.employees} موظف · {station.attendance}%
-                        </span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full bg-teal-500"
-                          style={{ width: `${station.attendance}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <StationMasterSummary />
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
