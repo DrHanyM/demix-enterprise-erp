@@ -66,6 +66,7 @@ export default function StationToolsPage() {
   const issueConnectorToken = useMutation(api.stationSync.issueConnectorToken);
   const [selectedStationId, setSelectedStationId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [configReady, setConfigReady] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -77,6 +78,7 @@ export default function StationToolsPage() {
     if (!window.confirm("سيتم إصدار مفتاح اتصال جديد لهذه المحطة، وسيتوقف المفتاح السابق عن العمل. هل تريد المتابعة؟")) return;
     setBusy(true); setMessage(""); setError("");
     try {
+      const endpoint = getStationEndpoint();
       const token = createToken();
       const tokenHash = await sha256(token);
       const result = await issueConnectorToken({
@@ -85,7 +87,7 @@ export default function StationToolsPage() {
       });
       const profile = {
         stationCode: result.stationCode,
-        endpoint: getStationEndpoint(),
+        endpoint,
         connectorToken: token,
         table: "sRecords",
         columns: {
@@ -132,6 +134,7 @@ export default function StationToolsPage() {
             </button>
           </div>
           {message && <p role="status" className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
+          {configReady && <button type="button" onClick={() => downloadText("CONFIG", String.raw`\\\\192.168.10.1\\folderName\\DB name.mdb` + "\\n", "text/plain")} className="mt-3 rounded-lg border border-teal-300 bg-teal-50 px-4 py-2 text-sm font-bold text-teal-800">تنزيل CONFIG — سطر مسار قاعدة البيانات فقط</button>}
           {error && <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
           <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">إصدار مفتاح جديد يلغي المفتاح السابق للمحطة. نزّل ملف station-profile.json فور صدوره ولا تشاركه عبر المحادثات. لا تبدأ التثبيت على قاعدة الإنتاج قبل اختبار نسخة قراءة آمنة والتحقق من أسماء الجدول والحقول.</div>
         </section>
