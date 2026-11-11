@@ -4,7 +4,10 @@ from connector import epoch_ms, map_row
 
 class MappingTests(unittest.TestCase):
     def test_epoch_ms(self):
-        self.assertEqual(epoch_ms(datetime(2026, 1, 1, tzinfo=timezone.utc)), 1767218400000)
+        self.assertEqual(epoch_ms(datetime(2026, 1, 1)), 1767218400000)
+
+    def test_aware_utc_timestamp_is_preserved(self):
+        self.assertEqual(epoch_ms(datetime(2026, 1, 1, tzinfo=timezone.utc)), 1767225600000)
 
     def test_maps_source_columns_and_hash_is_stable(self):
         row = (17, datetime(2026, 1, 1, tzinfo=timezone.utc), 12.5, "J-1", "C30", "Operator", "Customer", "Project")
