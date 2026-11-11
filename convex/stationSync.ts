@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
+import { requireCentralPermission } from "./lib/auth";
 import { internal } from "./_generated/api";
 
 const importedRecord = v.object({
@@ -123,6 +124,7 @@ export const recordFailure = internalMutation({
 export const listSyncStatus = query({
   args: {},
   handler: async (ctx) => {
+    await requireCentralPermission(ctx, "system.stations.manage");
     const stations = await ctx.db.query("stations").collect();
     const result = [];
     for (const station of stations) {
