@@ -6,9 +6,10 @@ This file is the persistent checkpoint for the operations work. Continue from th
 
 - Repository: https://github.com/DrHanyM/demix-enterprise-erp
 - Working branch: `feature/operations-modules`
-- Latest verified web-preview commit at the time of this note: `9d1852de6a4cb82fc90daa02fb155139d5f2f64f`
-- Preview deployment: https://demix-enterprise-5yh23se8a-hany-m-abdelmonem.vercel.app
-- Preview deployment ID: `dpl_BoTrZPpmQBX9EctkameBsSTtsmVp`
+- Latest application-code commit verified in Preview: `ad6290d735e730d9ac4ff1f9c0aef010d2830bf3`
+- Stable branch Preview link: https://demix-enterprise-erp-git-feature-opera-85d323-hany-m-abdelmonem.vercel.app
+- Verified Preview deployment: https://demix-enterprise-1tt6fhx28-hany-m-abdelmonem.vercel.app
+- Preview deployment ID: `dpl_5H1HLgwDnjXeQ6g1bHHgVwwxXvsv`
 - Preview state: READY; Next.js compilation and TypeScript completed; route `/stations/tools` appears in the build output.
 - No Production deployment was performed.
 
@@ -42,11 +43,14 @@ This file is the persistent checkpoint for the operations work. Continue from th
 - [x] Station tools UI and dashboard/settings links.
 - [x] Per-station token issuance stores only SHA-256 token hash; old token is replaced on rotation.
 - [x] HTTP endpoint authenticates the per-station token and checks the station code.
-- [x] Vercel Preview web build READY for commit `9d1852d`; TypeScript completed.
+- [x] Vercel Preview web build READY for commit `ad6290d`; TypeScript completed.
+- [x] Station tools screen guards token issuance and status queries until the Convex Preview backend is deployed; no unusable station key can be issued prematurely.
+- [x] GitHub Actions connector test run #18 succeeded: https://github.com/DrHanyM/demix-enterprise-erp/actions/runs/42977196386
 
 ## Remaining gates — do not skip
 
-- [ ] Deploy the updated Convex schema/functions to the intended **Preview/staging** Convex deployment. The Vercel Preview build above did not run `convex deploy`.
+- [ ] Deploy the updated Convex schema/functions to the intended **Preview/staging** Convex deployment. The Vercel Preview build above deliberately did not run `convex deploy`; it only built the web app.
+- [ ] After that backend deployment, set `NEXT_PUBLIC_STATION_SYNC_ENABLED=true` in Vercel Preview and redeploy the Preview branch.
 - [ ] Verify the preview's Clerk authorization and that a central administrator with `system.stations.manage` can open the tools page.
 - [ ] Verify token issuance and one-time profile download against the deployed Preview Convex backend.
 - [ ] Inspect the actual Al-Warraqsh Access schema on a safe copy: table names, columns, source-ID uniqueness, and whether the production row is written only after mixer loading completes.
