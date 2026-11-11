@@ -3,18 +3,22 @@
 
 import BackToDashboard from "@/components/BackToDashboard";
 import { useMemo, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 export default function StationsPage() {
+  const { user: clerkUser } = useUser();
   const stations = useQuery(api.stations.listStations);
 
   const createStation = useMutation(api.stations.createStation);
+  const seedInitialStations = useMutation(api.stations.seedInitialStations);
   const updateStation = useMutation(api.stations.updateStation);
   const setStationStatus = useMutation(api.stations.setStationStatus);
 
   const [name, setName] = useState("");
+  const [seeding, setSeeding] = useState(false);
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState<Id<"stations"> | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -33,6 +37,32 @@ export default function StationsPage() {
         station.code.toLocaleLowerCase().includes(term)
     );
   }, [stations, search]);
+
+  async function handleSeedInitialStations() {
+    if (loading || seeding) return;
+    if (!clerkUser?.id) {
+      setErrorMessage("تعذر تحديد حساب المسؤول الحالي. أعد تحميل الصفحة ثم حاول مرة أخرى.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "سيتم إضافة المحطات الست المعتمدة غير الموجودة فقط. لن يتم حذف أو استبدال أي سجل قائم. هل تريد المتابعة؟"
+    );
+    if (!confirmed) return;
+
+    setSeeding(true);
+    setMessage("");
+    setErrorMessage("");
+    try {
+      const result = await seedInitialStations({
+        operationId: `approved-initial-stations-v1-${clerkUser.id}`,
+      });
+      setMessage(result.message);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "تعذر تسجيل المحطات المعتمدة.");
+    } finally {
+      setSeeding(false);
+    }
+  }
 
   async function handleCreate() {
     if (!name.trim()) {
@@ -174,9 +204,26 @@ export default function StationsPage() {
           background: "#fff",
         }}
       >
-        <h2 style={{ fontSize: "19px", fontWeight: "bold" }}>
-          إضافة محطة جديدة
-        </h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <h2 style={{ fontSize: "19px", fontWeight: "bold" }}>
+            إضافة محطة جديدة
+          </h2>
+          <button
+            type="button"
+            onClick={() => void handleSeedInitialStations()}
+            disabled={loading || seeding}
+            style={{
+              padding: "10px 16px",
+              border: "1px solid #bfdbfe",
+              borderRadius: "8px",
+              background: "#eff6ff",
+              color: "#1d4ed8",
+              cursor: loading || seeding ? "wait" : "pointer",
+            }}
+          >
+            {seeding ? "جارٍ التحقق والإضافة..." : "إضافة المحطات الست المعتمدة"}
+          </button>
+        </div>
 
         <div
           style={{
