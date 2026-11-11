@@ -20,11 +20,15 @@ http.route({
       if (typeof parsed !== "object" || parsed === null) return new Response("Invalid payload", { status: 400 });
       payload = parsed as Record<string, unknown>;
     } catch { return new Response("Invalid JSON", { status: 400 }); }
-    if (typeof payload.eventId !== "string" || typeof payload.eventType !== "string" || typeof payload.clerkUserId !== "string" || typeof payload.invitationId !== "string" || typeof payload.email !== "string" || typeof payload.emailVerified !== "boolean") return new Response("Invalid webhook fields", { status: 400 });
+    const hasValidInvitationId =
+      payload.invitationId === undefined ||
+      (typeof payload.invitationId === "string" && payload.invitationId.length > 0);
+    if (typeof payload.eventId !== "string" || typeof payload.eventType !== "string" || typeof payload.clerkUserId !== "string" || !hasValidInvitationId || typeof payload.email !== "string" || typeof payload.emailVerified !== "boolean") return new Response("Invalid webhook fields", { status: 400 });
     try {
       const result = await ctx.runMutation(internal.invitations.acceptInvitationFromClerk, {
         eventId: payload.eventId, eventType: payload.eventType, clerkUserId: payload.clerkUserId,
-        invitationId: payload.invitationId as Id<"invitations">, email: payload.email, emailVerified: payload.emailVerified,
+        invitationId: typeof payload.invitationId === "string" ? payload.invitationId as Id<"invitations"> : undefined,
+        email: payload.email, emailVerified: payload.emailVerified,
       });
       return Response.json(result);
     } catch (error) {

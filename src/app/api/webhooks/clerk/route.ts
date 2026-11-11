@@ -58,19 +58,11 @@ export async function POST(request: NextRequest) {
 
   // 3. Read invitation ID from Clerk public metadata.
   const metadata = data.public_metadata ?? {};
-  const invitationId = metadata.demixInvitationId;
-
-  // Other Clerk users must not be registered in this ERP.
-  if (
-    typeof invitationId !== "string" ||
-    !invitationId.trim()
-  ) {
-    return NextResponse.json({
-      success: true,
-      ignored: true,
-      reason: "NO_DEMIX_INVITATION",
-    });
-  }
+  const invitationId =
+    typeof metadata.demixInvitationId === "string" &&
+    metadata.demixInvitationId.trim()
+      ? metadata.demixInvitationId.trim()
+      : undefined;
 
   // 4. Resolve the primary email address.
   const emailAddresses = data.email_addresses ?? [];
@@ -117,7 +109,7 @@ export async function POST(request: NextRequest) {
           eventId,
           eventType: event.type,
           clerkUserId: data.id,
-          invitationId,
+          ...(invitationId ? { invitationId } : {}),
           email: primaryEmail.email_address,
           emailVerified,
         }),

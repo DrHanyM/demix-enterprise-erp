@@ -388,7 +388,7 @@ export const acceptInvitationFromClerk = internalMutation({
     eventId: v.string(),
     eventType: v.string(),
     clerkUserId: v.string(),
-    invitationId: v.id("invitations"),
+    invitationId: v.optional(v.id("invitations")),
     email: v.string(),
     emailVerified: v.boolean(),
   },
@@ -441,7 +441,52 @@ export const acceptInvitationFromClerk = internalMutation({
       };
     }
 
-    const invitation = await ctx.db.get(args.invitationId);
+    let invitation = args.invitationId
+      ? await ctx.db.get(args.invitationId)
+      : null;
+
+    if (!args.invitationId) {
+      const emailMatches = await ctx.db
+        .query("invitations")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .collect();
+
+      const invitedMatches = emailMatches.filter(
+        (candidate) => candidate.status === "invited"
+      );
+      const acceptedMatches = emailMatches.filter(
+        (candidate) => candidate.status === "accepted"
+      );
+      const candidates = invitedMatches.length > 0
+        ? invitedMatches
+        : acceptedMatches;
+
+      if (candidates.length > 1) {
+        throw new Error("AMBIGUOUS_ERP_INVITATION_FOR_EMAIL");
+      }
+
+      if (candidates.length === 0) {
+        if (emailMatches.some((candidate) => candidate.status === "inviting")) {
+          throw new Error("INVITATION_NOT_READY");
+        }
+
+        await ctx.db.insert("webhookEvents", {
+          eventId,
+          eventType: args.eventType,
+          processedAt: Date.now(),
+          createdAt: Date.now(),
+        });
+
+        return {
+          success: true,
+          duplicate: false,
+          ignored: true,
+          status: "no_matching_erp_invitation" as const,
+        };
+      }
+
+      invitation = candidates[0];
+    }
 
     if (!invitation) {
       throw new Error("INVITATION_NOT_FOUND");
