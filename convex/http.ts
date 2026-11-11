@@ -45,10 +45,11 @@ http.route({
     if (rawBody.length > 256_000) return new Response("Payload too large", { status: 413 });
     let payload: unknown;
     try { payload = JSON.parse(rawBody); } catch { return new Response("Invalid JSON", { status: 400 }); }
-    if (!isObject(payload) || typeof payload.stationCode !== "string" || typeof payload.batchId !== "string" || !Array.isArray(payload.records) || payload.records.length < 1 || payload.records.length > 100) return new Response("Invalid station batch", { status: 400 });
+    if (!isObject(payload) || typeof payload.stationCode !== "string" || typeof payload.machineId !== "string" || typeof payload.batchId !== "string" || !Array.isArray(payload.records) || payload.records.length < 1 || payload.records.length > 100) return new Response("Invalid station batch", { status: 400 });
     try {
       const result = await ctx.runMutation(internal.stationSync.ingestBatch, {
         stationCode: payload.stationCode,
+        machineId: payload.machineId,
         batchId: payload.batchId,
         records: payload.records as Array<{
           sourceRecordId: string; sourceHash: string; productionAt: number;
