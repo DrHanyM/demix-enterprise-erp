@@ -40,6 +40,10 @@ export default function StationsPage() {
 
   async function handleSeedInitialStations() {
     if (seeding || loading) return;
+    if (!clerkUser?.id) {
+      setErrorMessage("تعذر تحديد حساب المسؤول الحالي. أعد تحميل الصفحة ثم حاول مرة أخرى.");
+      return;
+    }
     const confirmed = window.confirm(
       "سيتم التأكد من وجود المحطات الست المعتمدة وإضافة الناقص فقط. لن يتم حذف أو استبدال أي محطة موجودة. هل تريد المتابعة؟"
     );
@@ -50,7 +54,7 @@ export default function StationsPage() {
     setErrorMessage("");
     try {
       const result = await seedInitialStations({
-        operationId: `approved-initial-stations-v1-${clerkUser?.id ?? "unknown"}`,
+        operationId: `approved-initial-stations-v1-${clerkUser.id}`,
       });
       setMessage(result.message);
     } catch (error) {
