@@ -19,6 +19,7 @@ const importedRecord = v.object({
 export const ingestBatch = internalMutation({
   args: {
     stationCode: v.string(),
+    machineId: v.string(),
     batchId: v.string(),
     records: v.array(importedRecord),
   },
@@ -34,7 +35,7 @@ export const ingestBatch = internalMutation({
       .withIndex("by_batchId", q => q.eq("batchId", args.batchId))
       .unique();
     if (previous) {
-      if (previous.stationId !== station._id) throw new Error("BATCH_ID_CONFLICT");
+      if (previous.stationId !== station._id || (previous.machineId && previous.machineId !== args.machineId)) throw new Error("BATCH_ID_CONFLICT");
       return { success: true, duplicateBatch: true, received: previous.received, inserted: previous.inserted, updated: previous.updated };
     }
 
@@ -50,11 +51,18 @@ export const ingestBatch = internalMutation({
         if (value !== undefined && value.length > 300) throw new Error("SOURCE_FIELD_TOO_LONG");
       }
       const existing = await ctx.db.query("stationProductionImports")
+        .withIndex("by_station_machine_source", q => q.eq("stationId", station._id).eq("machineId", args.machineId).eq("sourceRecordId", record.sourceRecordId))
+        .unique();
+      // Adopt pre-machine-key imports for backward compatibility, but never merge two known machines.
+      const legacy = existing ? null : await ctx.db.query("stationProductionImports")
         .withIndex("by_station_source", q => q.eq("stationId", station._id).eq("sourceRecordId", record.sourceRecordId))
         .unique();
-      if (existing) {
-        if (existing.sourceHash !== record.sourceHash) {
-          await ctx.db.patch(existing._id, {
+      const adoptLegacy = legacy && legacy.machineId === undefined ? legacy : null;
+      const current = existing ?? adoptLegacy;
+      if (current) {
+        if (current.sourceHash !== record.sourceHash || current.machineId !== args.machineId) {
+          await ctx.db.patch(current._id, {
+            machineId: args.machineId,
             sourceHash: record.sourceHash,
             productionAt: record.productionAt,
             customerName: record.customerName,
@@ -71,6 +79,7 @@ export const ingestBatch = internalMutation({
       } else {
         await ctx.db.insert("stationProductionImports", {
           stationId: station._id,
+          machineId: args.machineId,
           ...record,
           importedAt: now,
         });
@@ -80,6 +89,7 @@ export const ingestBatch = internalMutation({
     await ctx.db.insert("stationSyncBatches", {
       batchId: args.batchId,
       stationId: station._id,
+      machineId: args.machineId,
       received: args.records.length,
       inserted,
       updated,
