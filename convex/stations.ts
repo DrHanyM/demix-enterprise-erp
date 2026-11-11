@@ -5,7 +5,133 @@ import type { Id } from "./_generated/dataModel";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
 
-const STATION_ACTION = "station.create";
+
+
+// 0. Seed the six approved company stations exactly once.
+// Existing station records are never renamed, deleted, or replaced.
+const INITIAL_STATIONS = [
+  { code: "ST-ARW", name: "أبورواش" },
+  { code: "ST-QTM", name: "القطاميه" },
+  { code: "ST-ABQ", name: "أبوقير" },
+  { code: "ST-KWL", name: "الكوامل" },
+  { code: "ST-ABC", name: "ABC" },
+  { code: "ST-RHK", name: "رأس الحكمه" },
+] as const;
+
+export const seedInitialStations = mutation({
+  args: {
+    operationId: v.string(),
+  },
+
+  handler: async (ctx, args) => {
+    const { user } = await requireCentralPermission(
+      ctx,
+      "system.stations.manage"
+    );
+
+    const operationId = args.operationId.trim();
+    if (!operationId || operationId.length > 200) {
+      throw new Error("INVALID_OPERATION_ID");
+    }
+
+    const previousLogs = await ctx.db
+      .query("auditLogs")
+      .withIndex("by_operation", (q) => q.eq("operationId", operationId))
+      .take(2);
+
+    if (previousLogs.length > 1) {
+      throw new Error("DUPLICATE_OPERATION_ID");
+    }
+
+    if (previousLogs.length === 1) {
+      const previous = previousLogs[0];
+      if (
+        previous.actorUserId !== user._id ||
+        previous.action !== "station.seed_initial" ||
+        previous.entityType !== "station_batch"
+      ) {
+        throw new Error("OPERATION_ID_CONFLICT");
+      }
+      return {
+        success: true,
+        created: 0,
+        existing: INITIAL_STATIONS.length,
+        message: "تم تنفيذ إضافة المحطات المعتمدة سابقًا؛ لم يتم تكرار أي سجل.",
+      };
+    }
+
+    const existingStations = await ctx.db.query("stations").collect();
+    const normalized = (value: string) =>
+      value.trim().normalize("NFC").toLocaleLowerCase("ar");
+
+    let created = 0;
+    let existing = 0;
+    const createdIds: string[] = [];
+
+    for (const item of INITIAL_STATIONS) {
+      const byName = existingStations.find(
+        (station) => normalized(station.name) === normalized(item.name)
+      );
+
+      if (byName) {
+        existing += 1;
+        continue;
+      }
+
+      const byCode = await ctx.db
+        .query("stations")
+        .withIndex("by_code", (q) => q.eq("code", item.code))
+        .first();
+
+      if (byCode) {
+        throw new Error(
+          `STATION_CODE_CONFLICT: الكود ${item.code} مستخدم لمحطة أخرى؛ لم يتم استبدال أي بيانات.`
+        );
+      }
+
+      const now = Date.now();
+      const stationId = await ctx.db.insert("stations", {
+        code: item.code,
+        name: item.name,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      created += 1;
+      createdIds.push(String(stationId));
+      existingStations.push({
+        _id: stationId,
+        _creationTime: now,
+        code: item.code,
+        name: item.name,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    await appendAuditLog(ctx, {
+      action: "station.seed_initial",
+      entityType: "station_batch",
+      operationId,
+      details: {
+        created,
+        existing,
+        createdStationIds: createdIds,
+        approvedNames: INITIAL_STATIONS.map((item) => item.name),
+      },
+    });
+
+    return {
+      success: true,
+      created,
+      existing,
+      message: `اكتملت مراجعة المحطات الست: تمت إضافة ${created} محطة، وكانت ${existing} مسجلة مسبقًا.`,
+    };
+  },
+});
+\nconst STATION_ACTION = "station.create";
 const STATION_ENTITY = "station";
 
 // 1. Create a new station securely.
