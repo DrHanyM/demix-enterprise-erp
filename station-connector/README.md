@@ -4,7 +4,7 @@
 
 Edit the only non-empty line in CONFIG with the full database path and file name, for example:
 
-    \\192.168.10.1\\folderName\\DB name.mdb
+    \\192.168.10.1\folderName\DB name.mdb
 
 Do not enter the path in any other file. station-profile.json is generated for the selected station and contains its identity, server endpoint, and credential. The station operator does not edit it.
 
