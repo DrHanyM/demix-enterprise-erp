@@ -2,11 +2,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 export default function StationsPage() {
+  const { user: clerkUser } = useUser();
   const stations = useQuery(api.stations.listStations);
 
   const createStation = useMutation(api.stations.createStation);\n  const seedInitialStations = useMutation(api.stations.seedInitialStations);
@@ -46,7 +48,7 @@ export default function StationsPage() {
     setErrorMessage("");
     try {
       const result = await seedInitialStations({
-        operationId: "approved-initial-stations-v1",
+        operationId: `approved-initial-stations-v1-${clerkUser?.id ?? "unknown"}`,
       });
       setMessage(result.message);
     } catch (error) {
