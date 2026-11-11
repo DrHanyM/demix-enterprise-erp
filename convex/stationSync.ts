@@ -2,7 +2,6 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
-import { internal } from "./_generated/api";
 
 const importedRecord = v.object({
   sourceRecordId: v.string(),
