@@ -5,6 +5,96 @@ import type { Id } from "./_generated/dataModel";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
 
+
+// Approved company station master bootstrap. Safe to run repeatedly.
+const INITIAL_STATIONS = [
+  { code: "ST-ARW", name: "أبورواش" },
+  { code: "ST-QTM", name: "القطاميه" },
+  { code: "ST-ABQ", name: "أبوقير" },
+  { code: "ST-KWL", name: "الكوامل" },
+  { code: "ST-ABC", name: "ABC" },
+  { code: "ST-RHK", name: "رأس الحكمه" },
+] as const;
+
+export const seedInitialStations = mutation({
+  args: { operationId: v.string() },
+  handler: async (ctx, args) => {
+    const { user } = await requireCentralPermission(ctx, "system.stations.manage");
+    const operationId = args.operationId.trim();
+    if (!operationId || operationId.length > 200) throw new Error("INVALID_OPERATION_ID");
+
+    const previousLogs = await ctx.db.query("auditLogs")
+      .withIndex("by_operation", q => q.eq("operationId", operationId))
+      .take(2);
+    if (previousLogs.length > 1) throw new Error("DUPLICATE_OPERATION_ID");
+    if (previousLogs.length === 1) {
+      const previous = previousLogs[0];
+      if (
+        previous.actorUserId !== user._id ||
+        previous.action !== "station.seed_initial" ||
+        previous.entityType !== "station_batch"
+      ) throw new Error("OPERATION_ID_CONFLICT");
+      return {
+        success: true,
+        created: 0,
+        existing: INITIAL_STATIONS.length,
+        message: "تم تنفيذ تسجيل المحطات المعتمدة سابقًا؛ لم تتم إضافة سجلات مكررة.",
+      };
+    }
+
+    const allStations = await ctx.db.query("stations").collect();
+    const normalize = (value: string) =>
+      value.trim().normalize("NFC").toLocaleLowerCase("ar");
+    let created = 0;
+    let existing = 0;
+    const createdStationIds: string[] = [];
+
+    for (const item of INITIAL_STATIONS) {
+      if (allStations.some(s => normalize(s.name) === normalize(item.name))) {
+        existing += 1;
+        continue;
+      }
+
+      const codeOwner = await ctx.db.query("stations")
+        .withIndex("by_code", q => q.eq("code", item.code))
+        .first();
+      if (codeOwner) {
+        throw new Error(`STATION_CODE_CONFLICT: الكود ${item.code} مستخدم لمحطة أخرى. لم يتم تغيير أي سجل.`);
+      }
+
+      const now = Date.now();
+      const id = await ctx.db.insert("stations", {
+        code: item.code,
+        name: item.name,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      created += 1;
+      createdStationIds.push(String(id));
+    }
+
+    await appendAuditLog(ctx, {
+      action: "station.seed_initial",
+      entityType: "station_batch",
+      operationId,
+      details: {
+        created,
+        existing,
+        createdStationIds,
+        approvedNames: INITIAL_STATIONS.map(s => s.name),
+      },
+    });
+
+    return {
+      success: true,
+      created,
+      existing,
+      message: `تمت مراجعة المحطات الست: أضيفت ${created} محطة، وكانت ${existing} موجودة بالفعل.`,
+    };
+  },
+});
+
 const STATION_ACTION = "station.create";
 const STATION_ENTITY = "station";
 
