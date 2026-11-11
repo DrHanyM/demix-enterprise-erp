@@ -31,7 +31,7 @@ def load_config():
 def load_profile():
     p=json.loads(PROFILE_FILE.read_text(encoding="utf-8"))
     for k in ("stationCode","endpoint","connectorToken"):
-        if not str(p.get(k,"")).strip() or "REPLACE_" in str(p.get(k,"")): raise RuntimeError("Missing station profile field: "+k)
+        if not str(p.get(k,"")).strip() or any(x in str(p.get(k,"")) for x in ("REPLACE_","PROVISIONED_","YOUR-PREVIEW")): raise RuntimeError("Missing station profile field: "+k)
     p.setdefault("machineId",platform.node())
     p.setdefault("table","sRecords")
     p.setdefault("columns",{"id":"id","time":"sctime","quantity":"output_vol","job":"job_no","grade":"strength","operator":"operator","customer":"CUST_NM","project":"PROJ_NM"})
@@ -112,6 +112,8 @@ def open_queue():
       station TEXT NOT NULL,machine TEXT NOT NULL,source_id TEXT NOT NULL,source_hash TEXT NOT NULL,
       payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',batch_id TEXT,attempts INTEGER NOT NULL DEFAULT 0,
       last_error TEXT,queued_at TEXT NOT NULL,sent_at TEXT,PRIMARY KEY(station,machine,source_id))""")
+    # Requeue batches interrupted while in-flight; stable batch IDs make retry idempotent.
+    db.execute("UPDATE outbox SET status='pending' WHERE status='sending'")
     db.commit(); return db
 
 def enqueue(db,profile,rows):
