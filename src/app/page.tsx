@@ -83,7 +83,7 @@ const attendance = [
 const activities = [
   {
     title: "طلب إجازة جديد",
-    detail: "طلب إجازة سنوية – محطة القاهرة",
+    detail: "طلب إجازة سنوية – محطة الشركة",
     time: "منذ 15 دقيقة",
     status: "بانتظار المراجعة",
     tone: "orange",
@@ -396,8 +396,8 @@ export default async function Home() {
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <SectionTitle
-                  title="أداء المحطات"
-                  subtitle="توزيع الموظفين ونسبة الحضور – بيانات تجريبية"
+                  title="محطات الشركة"
+                  subtitle="أسماء المحطات من السجل المركزي المشترك بين ERP وHR"
                 />
 
                 <StationMasterSummary />
