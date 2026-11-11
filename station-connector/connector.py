@@ -3,6 +3,8 @@
 from __future__ import annotations
 import hashlib, json, logging, os, time, uuid
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+LOCAL_TZ = ZoneInfo(os.environ.get('DEMIX_STATION_TIMEZONE', 'Africa/Cairo'))
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
@@ -29,11 +31,11 @@ def save_json(path: Path, value):
 
 def epoch_ms(value):
     if isinstance(value, datetime):
-        dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        dt = value if value.tzinfo else value.replace(tzinfo=LOCAL_TZ)
         return int(dt.timestamp() * 1000)
     if isinstance(value, str):
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if parsed.tzinfo is None: parsed = parsed.replace(tzinfo=timezone.utc)
+        if parsed.tzinfo is None: parsed = parsed.replace(tzinfo=LOCAL_TZ)
         return int(parsed.timestamp() * 1000)
     raise ValueError("Unsupported sctime value")
 

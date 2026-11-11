@@ -58,8 +58,17 @@ http.route({
       });
       return Response.json(result);
     } catch (error) {
+      const message = error instanceof Error ? error.message : "SYNC_FAILED";
+      try {
+        await ctx.runMutation(internal.stationSync.recordFailure, {
+          stationCode: payload.stationCode,
+          message,
+        });
+      } catch (statusError) {
+        console.error("Could not persist station sync failure:", statusError);
+      }
       console.error("Station sync batch rejected:", error);
-      return Response.json({ success: false, error: error instanceof Error ? error.message : "SYNC_FAILED" }, { status: 400 });
+      return Response.json({ success: false, error: message }, { status: 400 });
     }
   }),
 });
