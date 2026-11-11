@@ -6,7 +6,7 @@ Edit the only non-empty line in CONFIG with the full database path and file name
 
     \\192.168.10.1\folderName\DB name.mdb
 
-Do not enter the path in any other file. station-profile.json is generated for the selected station and contains its identity, server endpoint, and credential. The station operator does not edit it.
+Do not enter the path in any other file. station-profile.json is generated from **Tools > Stations & Sync** after selecting an existing station. It contains the station identity, server endpoint, and its independent connector token. The server stores only the token hash. The station operator does not edit this file. Rotating the station token invalidates the previous token.
 
 ## Seven-minute schedule
 
@@ -18,9 +18,9 @@ The interval can be changed later in Task Scheduler. It controls station reading
 
 - The original Access file is copied to a local temporary snapshot; ODBC opens only the snapshot with ReadOnly=1.
 - Source SHA-256 and file metadata are checked around the copy. A changing source aborts the cycle.
-- Local durable queue: D:\DEMIX_SYNC\\DATA\\SyncQueue.db.
+- Local durable queue: D:\DEMIX_SYNC\DATA\SyncQueue.db.
 - New and changed rows are detected by content hash, without assuming source ID is numeric or sequential.
-- Local and server deduplication identity is station + machine + source record ID.
+- Local and server deduplication identity is station + machine + source record ID. The connector token is station-specific; it is not a shared company-wide token.
 - A record is marked sent only after a successful server acknowledgement. Failed sends remain pending and retry.
 - Imported records remain separate from manually entered production records. No inventory deduction or automatic posting occurs.
 
@@ -35,4 +35,4 @@ Queue folders are created automatically under D:\DEMIX_SYNC.
 
 ## Pre-production gate
 
-Do not enable the task against a live station until the Al-Warraqsh database path, ODBC driver, actual table/column names, source ID uniqueness, and the moment the mixer-load row is written have been checked. This repository update does not provision a real station credential, deploy Convex, or test the live station.
+Do not enable the task against a live station until the Al-Warraqsh database path, ODBC driver, actual table/column names, source ID uniqueness, and the moment the mixer-load row is written have been checked. The UI can issue a per-station token, but the new Convex schema and authentication functions must be deployed to the intended Convex environment before token issuance and live ingestion can work. The preview web build does not deploy Convex. No live station credential has been issued and no live Access database has been read.
