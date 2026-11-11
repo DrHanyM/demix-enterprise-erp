@@ -1,4 +1,4 @@
-﻿import { ClerkProvider } from "@clerk/nextjs";
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import "./globals.css";
@@ -19,12 +19,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" className="h-full antialiased">
       <body className="min-h-full">
-        <ClerkProvider
-          signInUrl="/sign-in"
-          signUpUrl="/sign-up"
-          signInFallbackRedirectUrl="/"
-          signUpFallbackRedirectUrl="/"
-        >
+        <ClerkProvider signInFallbackRedirectUrl="/" signUpFallbackRedirectUrl="/">
           <ConvexClientProvider>
             {children}
           </ConvexClientProvider>
