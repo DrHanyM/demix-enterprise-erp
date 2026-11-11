@@ -492,4 +492,46 @@ export default defineSchema({
     .index("by_station_time", ["stationId", "productionAt"])
     .index("by_station_job", ["stationId", "jobNo"]),
 
+
+  // Immutable source mirror for station production imports; kept separate from manually entered ERP records.
+  stationProductionImports: defineTable({
+    stationId: v.id("stations"),
+    sourceRecordId: v.string(),
+    sourceHash: v.string(),
+    productionAt: v.number(),
+    customerName: v.optional(v.string()),
+    projectName: v.optional(v.string()),
+    jobNo: v.optional(v.string()),
+    concreteGrade: v.optional(v.string()),
+    quantity: v.optional(v.number()),
+    operatorName: v.optional(v.string()),
+    importedAt: v.number(),
+    sourceUpdatedAt: v.optional(v.number()),
+  })
+    .index("by_station_source", ["stationId", "sourceRecordId"])
+    .index("by_station_time", ["stationId", "productionAt"]),
+
+  stationSyncBatches: defineTable({
+    batchId: v.string(),
+    stationId: v.id("stations"),
+    received: v.number(),
+    inserted: v.number(),
+    updated: v.number(),
+    processedAt: v.number(),
+  })
+    .index("by_batchId", ["batchId"])
+    .index("by_station_processedAt", ["stationId", "processedAt"]),
+
+  stationSyncState: defineTable({
+    stationId: v.id("stations"),
+    status: v.union(v.literal("online"), v.literal("error")),
+    lastSeenAt: v.number(),
+    lastSuccessAt: v.optional(v.number()),
+    lastBatchId: v.optional(v.string()),
+    recordsReceived: v.number(),
+    recordsInserted: v.number(),
+    recordsUpdated: v.number(),
+    lastError: v.optional(v.string()),
+  })
+    .index("by_station", ["stationId"])
 });

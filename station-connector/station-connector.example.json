@@ -1,0 +1,9 @@
+{
+  "station_code": "ST-ARW",
+  "database_path": "C:\\DeMix\\SData\\Search.MDB",
+  "convex_site_url": "https://your-preview-deployment.convex.site",
+  "connector_token": "GENERATE_AND_SET_THE_SAME_SECRET_IN_CONVEX",
+  "odbc_driver": "Microsoft Access Driver (*.mdb, *.accdb)",
+  "poll_interval_seconds": 60,
+  "request_timeout_seconds": 30
+}

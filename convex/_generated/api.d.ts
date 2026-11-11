@@ -29,6 +29,7 @@ import type * as lib_auth from "../lib/auth.js";
 import type * as securityChecks from "../securityChecks.js";
 import type * as shifts from "../shifts.js";
 import type * as stations from "../stations.js";
+import type * as stationSync from "../stationSync.js";
 import type * as users from "../users.js";
 
 import type {
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   securityChecks: typeof securityChecks;
   shifts: typeof shifts;
   stations: typeof stations;
+  stationSync: typeof stationSync;
   users: typeof users;
 }>;
 
