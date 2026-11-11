@@ -9,11 +9,6 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
-try:
-    import pyodbc
-except ImportError as exc:
-    raise SystemExit("Missing dependency pyodbc. Run: py -m pip install pyodbc") from exc
-
 ROOT = Path(__file__).resolve().parent
 CONFIG = ROOT / "station-connector.json"
 STATE = ROOT / "checkpoint.json"
@@ -77,6 +72,10 @@ def post_batch(config, records):
         return result
 
 def connect(config):
+    try:
+        import pyodbc
+    except ImportError as exc:
+        raise SystemExit("Missing dependency pyodbc. Run: py -m pip install pyodbc") from exc
     db_path = str(Path(config["database_path"]).resolve())
     if not Path(db_path).is_file(): raise FileNotFoundError("MDB not found: " + db_path)
     driver = config.get("odbc_driver", "Microsoft Access Driver (*.mdb, *.accdb)")
