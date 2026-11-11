@@ -1,0 +1,20 @@
+{
+  "stationCode": "ST-ARW",
+  "machineId": "AUTO_FROM_WINDOWS_COMPUTER_NAME",
+  "endpoint": "https://YOUR-PREVIEW-CONVEX-SITE.convex.site/station-sync",
+  "connectorToken": "PROVISIONED_PER_STATION_NOT_EDITED_BY_OPERATOR",
+  "table": "sRecords",
+  "columns": {
+    "id": "id",
+    "time": "sctime",
+    "quantity": "output_vol",
+    "job": "job_no",
+    "grade": "strength",
+    "operator": "operator",
+    "customer": "CUST_NM",
+    "project": "PROJ_NM"
+  },
+  "odbcDriver": "Microsoft Access Driver (*.mdb, *.accdb)",
+  "requestTimeoutSeconds": 30,
+  "timezone": "Africa/Cairo"
+}
