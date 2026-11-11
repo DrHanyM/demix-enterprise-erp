@@ -147,7 +147,7 @@ def send_pending(db,profile):
         if item is None:break
         batch,records,ids=item
         try:
-            body=json.dumps({"stationCode":station,"batchId":batch,"records":records},ensure_ascii=False).encode()
+            body=json.dumps({"stationCode":station,"machineId":machine,"batchId":batch,"records":records},ensure_ascii=False).encode()
             request=Request(profile["endpoint"].rstrip("/"),data=body,headers={"Authorization":"Bearer "+profile["connectorToken"],"Content-Type":"application/json"},method="POST")
             with urlopen(request,timeout=int(profile["requestTimeoutSeconds"])) as response:
                 result=json.loads(response.read().decode())
