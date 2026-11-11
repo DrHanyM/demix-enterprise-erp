@@ -10,9 +10,9 @@ Do not enter the path in any other file. station-profile.json is generated for t
 
 ## Seven-minute schedule
 
-INSTALL.ps1 registers Windows Task Scheduler task DEMIX_PRODUCTION_SYNC. It runs at Windows startup and repeats every 7 minutes, as SYSTEM even when no operator is logged in. IgnoreNew prevents overlapping executions. Failed sends remain in the local SQLite outbox for the next run.
+INSTALL.ps1 registers Windows Task Scheduler task DEMIX_PRODUCTION_SYNC. It runs at Windows startup and repeats every 7 minutes, as SYSTEM even when no operator is logged in. IgnoreNew prevents overlapping executions. Failed sends remain in the local SQLite outbox for the next run. Because SYSTEM reaches a UNC share using the computer account, the network share and NTFS permissions must grant the station computer account read access; otherwise use an approved service account configured in Task Scheduler.
 
-The interval can be changed later in Task Scheduler. It controls station reading/sending only. The server handles each received batch immediately. If the Access application writes a production row only after mixer loading is complete, the next scheduled cycle picks it up. The actual Al-Warraqsh table/column mapping and the moment the row is written must be checked on the test PC before production activation.
+The interval can be changed later in Task Scheduler. It controls station reading/sending only. The server handles each received batch immediately. The connector reads the source on the seven-minute cycle; it does not yet infer mixer completion from a sensor or a guessed status field. Before enabling it, verify on the Al-Warraqsh PC that the source row is written only after the mixer has finished loading. If the Access application exposes a reliable completion/status field instead, configure and test that exact field before filtering records.
 
 ## Delivery and source safety
 
@@ -20,7 +20,7 @@ The interval can be changed later in Task Scheduler. It controls station reading
 - Source SHA-256 and file metadata are checked around the copy. A changing source aborts the cycle.
 - Local durable queue: D:\\DEMIX_SYNC\\DATA\\SyncQueue.db.
 - New and changed rows are detected by content hash, without assuming source ID is numeric or sequential.
-- Local queue identity is station + machine + source record ID. The current server schema still deduplicates by station + source record ID; server schema/API must be extended to include machine ID before multiple machines at one station are enabled.
+- Local and server deduplication identity is station + machine + source record ID.
 - A record is marked sent only after a successful server acknowledgement. Failed sends remain pending and retry.
 - Imported records remain separate from manually entered production records. No inventory deduction or automatic posting occurs.
 
