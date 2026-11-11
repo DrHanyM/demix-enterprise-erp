@@ -2,7 +2,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { requireCentralPermission } from "./lib/auth";
+import { requireActiveUser, requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
 
 
@@ -304,6 +304,20 @@ export const listStations = query({
     return stations.sort((a, b) =>
       a.name.localeCompare(b.name, "ar")
     );
+  },
+});
+
+// Shared station master for authenticated HR and operational screens.
+// HR records must store stationId; this query supplies the current display names.
+export const listActiveStations = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireActiveUser(ctx);
+    const stations = await ctx.db
+      .query("stations")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+    return stations.sort((a, b) => a.name.localeCompare(b.name, "ar"));
   },
 });
 
