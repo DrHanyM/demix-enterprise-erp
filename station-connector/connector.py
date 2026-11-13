@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DeMix station connector. Access source is never modified."""
 from __future__ import annotations
-import hashlib, json, logging, platform, shutil, sqlite3, tempfile
+import hashlib, json, logging, math, platform, shutil, sqlite3, tempfile
 from datetime import date, datetime, time
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -95,6 +95,7 @@ def clean(value):
     return value or None
 
 def json_safe(value):
+    if isinstance(value,float) and not math.isfinite(value): return str(value)
     if value is None or isinstance(value,(str,int,float,bool)): return value
     if isinstance(value,(datetime,date,time)): return value.isoformat()
     if isinstance(value,bytes): return {"__type":"bytes","hex":value.hex()}
@@ -108,11 +109,13 @@ def map_row(row,columns,timezone_name="Africa/Cairo"):
     source_id=clean(get("id"))
     if source_id is None: raise ValueError("Source row has no configured unique ID")
     quantity=get("quantity")
+    numeric_quantity=float(quantity) if quantity is not None else None
+    if numeric_quantity is not None and not math.isfinite(numeric_quantity): raise ValueError("Source quantity is not a finite number")
     raw_data={str(k):json_safe(v) for k,v in row.items()}
     result={"sourceRecordId":source_id,"productionAt":epoch_ms(get("time"),timezone_name),
         "customerName":clean(get("customer")),"projectName":clean(get("project")),
         "jobNo":clean(get("job")),"concreteGrade":clean(get("grade")),
-        "quantity":float(quantity) if quantity is not None else None,"operatorName":clean(get("operator")),
+        "quantity":numeric_quantity,"operatorName":clean(get("operator")),
         "truckNo":clean(get("truck")),"operationState":clean(get("operationState")),
         "rawSourceData":raw_data}
     raw=json.dumps(raw_data,ensure_ascii=False,sort_keys=True,separators=(",",":"))
