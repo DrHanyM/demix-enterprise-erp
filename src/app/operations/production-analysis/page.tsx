@@ -110,6 +110,18 @@ function SourceSelect({ label, value, onChange, values }: { label: string; value
   </label>;
 }
 
+function BreakdownTable({ title, items }: { title: string; items: { name: string; qty: number; count: number }[] }) {
+  return <div className="overflow-hidden rounded-xl border bg-white p-4">
+    <h3 className="mb-2 font-bold">{title}</h3>
+    <div className="max-h-72 overflow-auto">
+      <table className="w-full text-right text-xs">
+        <thead className="bg-slate-50"><tr><th className="p-2">البند</th><th className="p-2">الإنتاج م³</th><th className="p-2">التشغيلات</th></tr></thead>
+        <tbody>{items.map((item) => <tr key={item.name} className="border-t"><td className="p-2">{item.name}</td><td className="p-2 font-bold">{item.qty.toLocaleString("en-US", { maximumFractionDigits: 2 })}</td><td className="p-2">{item.count}</td></tr>)}</tbody>
+      </table>
+    </div>
+  </div>;
+}
+
 export default function ProductionAnalysisPage() {
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
@@ -360,6 +372,8 @@ export default function ProductionAnalysisPage() {
           <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">إجمالي الكمية المفلترة (م³)</p><p className="mt-2 text-2xl font-extrabold">{total.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p></div>
           <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">عدد التشغيلات المحملة</p><p className="mt-2 text-2xl font-extrabold">{filtered.length.toLocaleString("en-US")}</p></div>
           <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">متوسط التشغيلة (م³)</p><p className="mt-2 text-2xl font-extrabold">{(filtered.length ? total / filtered.length : 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}</p></div>
+          <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">معرفات تشغيل مكررة</p><p className="mt-2 text-2xl font-extrabold">{duplicateCount.toLocaleString("en-US")}</p></div>
+          <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">تشغيلات ناقصة بيانات أساسية</p><p className="mt-2 text-2xl font-extrabold">{incompleteCount.toLocaleString("en-US")}</p></div>
         </section>
 
         <section className="rounded-xl border bg-white p-4">
@@ -403,6 +417,17 @@ export default function ProductionAnalysisPage() {
               ))}
             </tbody>
           </table>
+        </section>
+        <section className="grid gap-3 xl:grid-cols-3">
+          <BreakdownTable title="الإنتاج بالساعة" items={hourly} />
+          <BreakdownTable title="الإنتاج الشهري" items={monthly} />
+          <BreakdownTable title="الإنتاج السنوي" items={yearly} />
+        </section>
+        <section className="grid gap-3 xl:grid-cols-2">
+          <BreakdownTable title="مقارنة الإنتاج حسب المحطة" items={byStation} />
+          <BreakdownTable title="مقارنة الإنتاج حسب خط الإنتاج" items={byLine} />
+          <BreakdownTable title="إنتاج العملاء" items={byCustomer} />
+          <BreakdownTable title="إنتاج المشروعات" items={byProject} />
         </section>
 
         <section className="overflow-x-auto rounded-xl border bg-white p-4">
