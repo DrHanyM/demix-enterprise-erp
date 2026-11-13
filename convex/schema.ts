@@ -509,6 +509,7 @@ export default defineSchema({
     operatorName: v.optional(v.string()),
     importedAt: v.number(),
     sourceUpdatedAt: v.optional(v.number()),
+    rawSourceData: v.optional(v.any()),
   })
     .index("by_station_source", ["stationId", "sourceRecordId"])
     .index("by_station_machine_source", ["stationId", "machineId", "sourceRecordId"])
