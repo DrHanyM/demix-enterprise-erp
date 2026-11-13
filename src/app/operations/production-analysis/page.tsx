@@ -149,15 +149,9 @@ export default function ProductionAnalysisPage() {
     stationId: stationId ? stationId as any : undefined,
     fromAt,
     toAt,
-    customerName: customer || undefined,
-    projectName: project || undefined,
-    jobNo: job || undefined,
-    concreteGrade: mix || undefined,
-    truckNo: mixer || undefined,
-    operationState: state || undefined,
   };
   const { results, status, loadMore } = usePaginatedQuery(api.operations.listImportedProductionPage, args, { initialNumItems: 500 });
-  const rows = (results ?? []) as unknown as Row[];
+  const rows = useMemo(() => (results ?? []) as unknown as Row[], [results]);
 
   const options = useMemo(() => ({
     customers: [...new Set(rows.map((r) => r.customerName).filter(Boolean) as string[])].sort(),
@@ -262,7 +256,8 @@ export default function ProductionAnalysisPage() {
   const exportCsv = () => {
     const columns = ["sourceRecordId", "productionAt", "station", "jobNo", "customerName", "projectName", "concreteGrade", "quantity", "truckNo", "driverName", "operatorName", "operationState"];
     const escapeCsv = (value: unknown) => '"' + String(value ?? "").replace(/"/g, '""') + '"';
-    const lines = [columns.join(","), ...filtered.map((row) => columns.map((column) => escapeCsv(column === "station" ? row.station?.name : (row as any)[column])).join(","))];
+    const valueFor = (row: Row, column: string): unknown => column === "station" ? row.station?.name : row[column as keyof Row];
+    const lines = [columns.join(","), ...filtered.map((row) => columns.map((column) => escapeCsv(valueFor(row, column))).join(","))];
     saveFile("demix-production-filtered.csv", "\ufeff" + lines.join("\r\n"), "text/csv;charset=utf-8");
   };
 
