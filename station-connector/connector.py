@@ -297,7 +297,69 @@ def send_pending(db,profile):
             logging.exception("Send failed; records retained for retry"); break
     return sent
 
-def run_once(validate_only=False,limit=None,validate_all=False,validate_server=False):
+
+def send_preview_first_batch(source_path,profile,limit=100):
+    """Send exactly one bounded batch directly; bypasses SQLite/outbox entirely."""
+    from urllib.parse import urlparse
+    endpoint=profile["endpoint"].rstrip("/")
+    parsed=urlparse(endpoint)
+    if parsed.scheme!="https" or parsed.hostname!="savory-hyena-978.ap-southeast-2.convex.site" or parsed.path!="/station-sync":
+        raise RuntimeError("PREVIEW_ENDPOINT_MISMATCH: refusing to send anywhere except the approved Preview station-sync endpoint.")
+    if not profile.get("connectorToken"):
+        raise RuntimeError("Missing station connector credential.")
+    if limit!=100:
+        raise ValueError("The approved one-time Preview test is fixed at exactly 100 source rows.")
+    rows,digest=read_rows(source_path,profile,limit=limit)
+    if len(rows)!=100:
+        raise RuntimeError(f"Expected exactly 100 source rows; read {len(rows)}. Nothing was sent.")
+    records=[map_row(row,profile["columns"],profile.get("timezone","Africa/Cairo")) for row in rows]
+    # Reapply the server's record-level constraints before any network request.
+    for record in records:
+        if not record["sourceRecordId"].strip() or _js_length(record["sourceRecordId"])>160:
+            raise RuntimeError("INVALID_SOURCE_RECORD_ID; nothing was sent.")
+        if not record["sourceHash"].strip() or _js_length(record["sourceHash"])>128:
+            raise RuntimeError("INVALID_SOURCE_HASH; nothing was sent.")
+        if not isinstance(record["productionAt"],(int,float)) or not __import__("math").isfinite(record["productionAt"]) or record["productionAt"]<=0:
+            raise RuntimeError("INVALID_PRODUCTION_TIMESTAMP; nothing was sent.")
+        q=record.get("quantity")
+        if q is not None and (not __import__("math").isfinite(q) or q<0 or q>100000):
+            raise RuntimeError("INVALID_PRODUCTION_QUANTITY; nothing was sent.")
+        for key in ("customerName","projectName","jobNo","concreteGrade","operatorName","truckNumber","driverName"):
+            if key in record and _js_length(record[key])>300:
+                raise RuntimeError("SOURCE_FIELD_TOO_LONG; nothing was sent.")
+        state=record.get("operationState")
+        if state is not None and not __import__("math").isfinite(state):
+            raise RuntimeError("INVALID_OPERATION_STATE; nothing was sent.")
+        raw=record.get("rawSourceData")
+        if raw is not None and not isinstance(raw,dict):
+            raise RuntimeError("INVALID_RAW_SOURCE_DATA; nothing was sent.")
+    station=profile["stationCode"]; machine=profile["machineId"]
+    material="|".join(r["sourceRecordId"]+":"+r["sourceHash"] for r in records)
+    batch_id=hashlib.sha256((station+"|"+machine+"|"+material).encode("utf-8")).hexdigest()
+    payload={"stationCode":station,"machineId":machine,"batchId":batch_id,"records":records}
+    body=json.dumps(payload,ensure_ascii=False,separators=(",",":"),allow_nan=False).encode("utf-8")
+    max_bytes=int(profile.get("maxBatchBytes",180000))
+    if len(body)>max_bytes or len(body)>256000:
+        raise RuntimeError(f"PREVIEW_BATCH_TOO_LARGE ({len(body)} bytes); nothing was sent.")
+    request=Request(endpoint,data=body,headers={
+        "Authorization":"Bearer "+profile["connectorToken"],
+        "Content-Type":"application/json"
+    },method="POST")
+    try:
+        with urlopen(request,timeout=int(profile.get("requestTimeoutSeconds",30))) as response:
+            response_body=response.read().decode("utf-8")
+            result=json.loads(response_body) if response_body else {}
+            if response.status!=200 or not result.get("success"):
+                raise RuntimeError("Preview did not acknowledge the batch.")
+    except Exception:
+        logging.exception("One-time Preview batch send failed; no automatic retry was attempted.")
+        raise
+    return {"mode":"preview_one_batch","read":len(rows),"sent":len(records),
+            "queueWritten":False,"queueRead":False,"batchesSent":1,
+            "response":result,"payloadBytes":len(body),"sourceSha256":digest,
+            "batchId":batch_id,"endpointHost":parsed.hostname}
+
+def run_once(validate_only=False,limit=None,validate_all=False,validate_server=False,send_preview=False):
     setup_logging(); source=load_config(); profile=load_profile()
     if validate_server:
         return validate_server_rows(source,profile)
@@ -333,10 +395,10 @@ if __name__=="__main__":
                         help="Required with --validate-only; number of source rows to inspect (1..1000).")
     parser.add_argument("--validate-all",action="store_true",
                         help="Validate every source row in bounded memory without queue writes or network sends.")
-    parser.add_argument("--validate-server-contract",action="store_true",
+    parser.add_argument("--send-preview-first-100",action="store_true",\n                        help="Send exactly one 100-record batch to the hard-locked Preview endpoint; bypasses the SQLite queue.")\n    parser.add_argument("--validate-server-contract",action="store_true",
                         help="Preflight every row against server validators and estimate safe batch sizes; no queue or network.")
     args=parser.parse_args()
-    if args.validate_server_contract and (args.validate_only or args.validate_all or args.limit is not None):
+    if args.send_preview_first_100 and (args.validate_server_contract or args.validate_only or args.validate_all or args.limit is not None):\n        parser.error("--send-preview-first-100 cannot be combined with validation flags or --limit.")\n    if args.validate_server_contract and (args.validate_only or args.validate_all or args.limit is not None):
         parser.error("--validate-server-contract cannot be combined with other validation flags.")
     if args.validate_all and (args.validate_only or args.limit is not None):
         parser.error("--validate-all cannot be combined with --validate-only or --limit.")
