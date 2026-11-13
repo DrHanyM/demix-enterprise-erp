@@ -199,6 +199,102 @@ def check_server_records(profile, records):
             raise RuntimeError("Preview could not confirm existing source records")
         return {str(x["sourceRecordId"]):str(x["sourceHash"]) for x in result["matches"]}
 
+def fetch_server_manifest(profile):
+    endpoint=profile["endpoint"].rstrip("/")+"/manifest"
+    cursor=None; records=[]
+    while True:
+        params={"numItems":"100"}
+        if cursor: params["cursor"]=cursor
+        request=Request(endpoint+"?"+urlencode(params),headers={"Authorization":"Bearer "+profile["connectorToken"]},method="GET")
+        with urlopen(request,timeout=int(profile["requestTimeoutSeconds"])) as response:
+            page=json.loads(response.read().decode("utf-8"))
+            if response.status!=200 or not isinstance(page.get("page"),list):
+                raise RuntimeError("Preview manifest request failed")
+        records.extend(page["page"])
+        if page.get("isDone",True): break
+        cursor=page.get("continueCursor")
+        if not cursor: raise RuntimeError("Preview manifest pagination did not return a cursor")
+    return records
+
+def normalize_compare_value(value):
+    if value is None: return None
+    if isinstance(value,(datetime,date,time)): return ("date",value.isoformat())
+    if isinstance(value,bool): return ("bool",value)
+    if isinstance(value,(int,float)):
+        if isinstance(value,float) and not math.isfinite(value): return ("text",str(value))
+        return ("number",round(float(value),9))
+    text=" ".join(str(value).strip().split())
+    if not text: return None
+    try: return ("number",round(float(text.replace(",","")),9))
+    except ValueError: pass
+    try: return ("date",datetime.fromisoformat(text.replace("Z","+00:00")).isoformat())
+    except ValueError: return ("text",text.casefold())
+
+def compare_preview():
+    setup_logging()
+    profile=load_profile()
+    host=(urlsplit(profile["endpoint"]).hostname or "").lower()
+    if host!="savory-hyena-978.convex.site":
+        raise RuntimeError("Safety stop: local comparison is restricted to the approved Preview deployment.")
+    default_source=load_config()
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root=tk.Tk(); root.withdraw()
+        source=filedialog.askopenfilename(title="اختر قاعدة المحطة DB.MDB",initialdir=str(Path(default_source).parent),
+            initialfile=Path(default_source).name,filetypes=[("Access database","*.mdb *.accdb"),("All files","*.*")])
+        root.destroy()
+    except Exception as exc:
+        raise RuntimeError("Could not open the local DB.MDB file picker: "+str(exc)) from exc
+    if not source: raise RuntimeError("No Access database was selected; no data was sent.")
+    local_rows,digest=read_rows(source,profile)
+    local={}; local_duplicates=set(); local_duplicate_count=0
+    for row in local_rows:
+        item=map_row(row,profile["columns"],profile.get("timezone","Africa/Cairo"))
+        key=item["sourceRecordId"]
+        if key in local:
+            local_duplicate_count+=1; local_duplicates.add(key)
+        else: local[key]={"raw":item.get("rawSourceData",{}),"hash":item["sourceHash"]}
+    server_rows=fetch_server_manifest(profile)
+    server={}; server_duplicates=set(); server_duplicate_count=0
+    for row in server_rows:
+        key=str(row.get("sourceRecordId",""))
+        if key in server:
+            server_duplicate_count+=1; server_duplicates.add(key)
+        else: server[key]={"raw":row.get("rawSourceData") or {},"hash":str(row.get("sourceHash",""))}
+    matched=file_only=demix_only=different=0; details=[]
+    for key in sorted(set(local)|set(server),key=lambda x:(not x.isdigit(),int(x) if x.isdigit() else x.casefold())):
+        left=local.get(key); right=server.get(key)
+        if key in local_duplicates or key in server_duplicates:
+            status="duplicate"; fields="duplicate source ID"
+        elif left is None:
+            status="demix_only"; fields="record exists in DeMix only"; demix_only+=1
+        elif right is None:
+            status="file_only"; fields="record exists in DB.MDB only"; file_only+=1
+        elif right["raw"]:
+            keys=sorted({str(k) for k in left["raw"]}|{str(k) for k in right["raw"]},key=str.casefold)
+            diffs=[field for field in keys if normalize_compare_value(next((v for k,v in left["raw"].items() if str(k).casefold()==field.casefold()),None))!=normalize_compare_value(next((v for k,v in right["raw"].items() if str(k).casefold()==field.casefold()),None))]
+            if diffs: status="different"; fields="; ".join(diffs); different+=1
+            else: status="matched"; fields=""; matched+=1
+        elif left["hash"]==right["hash"]:
+            status="matched"; fields=""; matched+=1
+        else:
+            status="different"; fields="rawSourceData not stored in the DeMix record; hash differs"; different+=1
+        if status!="matched":
+            details.append({"sourceRecordId":key,"status":status,"differentFields":fields,
+                "sourceHash":left["hash"] if left else "","serverHash":right["hash"] if right else ""})
+    output=Path(source).with_name("DeMix_DB_Comparison_"+datetime.now().strftime("%Y%m%d_%H%M%S")+".csv")
+    with output.open("w",encoding="utf-8-sig",newline="") as file:
+        writer=csv.DictWriter(file,fieldnames=["sourceRecordId","status","differentFields","sourceHash","serverHash"])
+        writer.writeheader(); writer.writerows(details)
+    summary={"stationCode":profile["stationCode"],"sourceFile":Path(source).name,"sourceRecords":len(local_rows),
+        "demixRecords":len(server_rows),"matched":matched,"fileOnly":file_only,"demixOnly":demix_only,
+        "different":different,"sourceDuplicates":local_duplicate_count,"demixDuplicates":server_duplicate_count,
+        "sourceSha256":digest,"report":str(output),"databaseUploaded":False,"databaseModified":False}
+    summary_path=output.with_suffix(".json")
+    summary_path.write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding="utf-8")
+    print(json.dumps(summary,ensure_ascii=False)); return summary
+
 def send_preview_window(start,end):
     setup_logging()
     profile=load_profile()
@@ -274,10 +370,12 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--send-preview-first-100",action="store_true",help="Resume source rows 1-100; Preview IDs already present with the same hash are skipped.")
     parser.add_argument("--send-preview-next-100",action="store_true",help="Send source rows 101-200; records already present with the same hash are skipped.")
+    parser.add_argument("--compare-preview",action="store_true",help="Choose DB.MDB locally and compare every source field with station Preview; save CSV/JSON locally only.")
     args=parser.parse_args()
     try:
         if args.send_preview_first_100: send_preview_first_100()
         elif args.send_preview_next_100: send_preview_next_100()
+        elif args.compare_preview: compare_preview()
         else: print(json.dumps(run_once(),ensure_ascii=False))
     except Exception:
         setup_logging(); logging.exception("Sync cycle failed"); raise
