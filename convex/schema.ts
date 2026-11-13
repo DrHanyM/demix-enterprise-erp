@@ -511,7 +511,8 @@ export default defineSchema({
   })
     .index("by_station_source", ["stationId", "sourceRecordId"])
     .index("by_station_machine_source", ["stationId", "machineId", "sourceRecordId"])
-    .index("by_station_time", ["stationId", "productionAt"]),
+    .index("by_station_time", ["stationId", "productionAt"])
+    .index("by_productionAt", ["productionAt"]),
 
   stationSyncBatches: defineTable({
     batchId: v.string(),
@@ -570,7 +571,7 @@ export default defineSchema({
     downtimeMinutes: v.optional(v.number()), cost: v.optional(v.number()), meterReading: v.optional(v.number()),
     resolution: v.optional(v.string()), createdBy: v.id("users"), updatedBy: v.id("users"),
     createdAt: v.number(), updatedAt: v.number(),
-  }).index("by_equipment", ["equipmentId"]).index("by_status", ["status"]).index("by_reportedAt", ["reportedAt"]).index("by_orderNo", ["orderNo"]),
+  }).index("by_equipment", ["equipmentId"]).index("by_equipment_status", ["equipmentId", "status"]).index("by_status", ["status"]).index("by_reportedAt", ["reportedAt"]).index("by_orderNo", ["orderNo"]),
 
   warehouses: defineTable({
     code: v.string(), name: v.string(), stationId: v.optional(v.id("stations")), location: v.optional(v.string()),
