@@ -36,6 +36,23 @@ Run these commands from the connector folder on the Windows PC that can read the
 
 After each send, run the comparison command and check that file-only and changed counts have fallen as expected. Do not infer completion from HTTP success alone; reconcile the source and server counts.
 
+## Continue the previously tested 51-of-100 Preview import
+
+- Keep the existing station-profile.json and its token. Do not issue a replacement token for this continuation.
+- Set the single CONFIG line to the local DB.MDB path used for the earlier test. The connector opens a verified temporary copy in read-only mode.
+- Replace only connector.py with this current file; keep the existing profile and station identity.
+- Run `python .\\connector.py --send-preview-first-100`. It examines source rows 1-100, checks their IDs and hashes against the selected station's Preview records, and sends only rows not already present or whose source hash changed. If the prior 51 records are still present with matching hashes, this resumes with the remaining 49 rows from that same window.
+- The command is restricted to the approved Preview host, uses a 180 KB payload ceiling, verifies the server acknowledgement, and does not write to the SQLite outbox.
+- For the next source window (rows 101-200), run `python .\\connector.py --send-preview-next-100`. Do not use the unrestricted scheduled-sync command when the intention is to send only one selected 100-row window.
+
+## Local DB.MDB comparison (no database upload)
+
+1. In DeMix, open Operations > Production Analysis, clear the date filters, select the required station, and load all result pages until the screen says all results are loaded.
+2. Download the DeMix comparison JSON from that screen.
+3. Run `python .\\compare_db.py` from this connector folder. Select DB.MDB and then the downloaded DeMix JSON when prompted.
+4. The comparison reads a verified local snapshot of DB.MDB in Read Only mode and creates CSV and JSON reports beside the selected export. The Access database is not sent to Vercel or Convex and is never modified.
+5. Comparison keys are the original ID within the station. The report classifies matched, DB-only, DeMix-only, different fields, and duplicate IDs.
+
 ## Historical DB backfill and reconciliation
 
 - Keep the original DB.MDB/Access file read-only; the connector copies a stable snapshot before opening it with read-only ODBC.
