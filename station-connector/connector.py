@@ -116,7 +116,7 @@ def map_row(row,columns,timezone_name="Africa/Cairo"):
     result={"sourceRecordId":source_id,"productionAt":epoch_ms(get("time"),timezone_name),
         "customerName":clean(get("customer")),"projectName":clean(get("project")),
         "jobNo":clean(get("job")),"concreteGrade":clean(get("grade")),
-        "quantity":numeric_quantity,"operatorName":clean(get("operator")),"driverName":clean(get("driver")),
+        "quantity":numeric_quantity,"operatorName":clean(get("operator")),"driverName":clean(get("driver") or get("operator")),
         "truckNo":clean(get("truck")),"operationState":clean(get("operationState")),
         "rawSourceData":raw_data}
     raw=json.dumps(raw_data,ensure_ascii=False,sort_keys=True,separators=(",",":"))
