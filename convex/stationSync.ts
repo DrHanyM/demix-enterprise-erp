@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
@@ -175,6 +176,60 @@ export const recordFailure = internalMutation({
     const values = { status: "error" as const, lastSeenAt: now, lastError: args.message.slice(0, 500) };
     if (state) await ctx.db.patch(state._id, values);
     else await ctx.db.insert("stationSyncState", { stationId: station._id, ...values, recordsReceived: 0, recordsInserted: 0, recordsUpdated: 0 });
+  },
+});
+
+export const listProductionImports = query({
+  args: {
+    stationId: v.id("stations"),
+    fromAt: v.number(),
+    toAt: v.number(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireCentralPermission(ctx, "system.stations.manage");
+    if (args.fromAt > args.toAt) throw new Error("INVALID_PRODUCTION_DATE_RANGE");
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 500), 1), 1000);
+    const rows = await ctx.db.query("stationProductionImports")
+      .withIndex("by_station_time", q =>
+        q.eq("stationId", args.stationId)
+          .gte("productionAt", args.fromAt)
+          .lte("productionAt", args.toAt)
+      )
+      .order("desc")
+      .take(limit + 1);
+    return {
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+      limit,
+    };
+  },
+});
+
+
+export const listImportedRecordsForConnector = internalQuery({
+  args: {
+    stationId: v.id("stations"),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db.query("stationProductionImports")
+      .withIndex("by_station_time", q => q.eq("stationId", args.stationId))
+      .order("asc")
+      .paginate(args.paginationOpts);
+    return {
+      ...result,
+      page: result.page.map(record => ({
+        sourceRecordId: record.sourceRecordId,
+        sourceHash: record.sourceHash,
+        productionAt: record.productionAt,
+        customerName: record.customerName,
+        projectName: record.projectName,
+        jobNo: record.jobNo,
+        quantity: record.quantity,
+        machineId: record.machineId,
+      })),
+    };
   },
 });
 

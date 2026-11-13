@@ -17,6 +17,7 @@ const menuGroups: {
     items: [
       { icon: "▦", label: "التشغيل والإنتاج", href: "/production" },
       { icon: "⇄", label: "أدوات المحطات والمزامنة", href: "/stations/tools" },
+      { icon: "▤", label: "سجل إنتاج المحطات", href: "/stations/production" },
     ],
   },
   {

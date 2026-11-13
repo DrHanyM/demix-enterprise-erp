@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """DeMix station connector. Access source is never modified."""
 from __future__ import annotations
-import argparse, hashlib, json, logging, platform, shutil, sqlite3, tempfile
+import argparse, csv, hashlib, json, logging, platform, shutil, sqlite3, tempfile
 from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
+from urllib.parse import urlencode, urlparse
 
 ROOT=Path(__file__).resolve().parent
 CONFIG_FILE=ROOT/"CONFIG"
@@ -375,6 +376,81 @@ def send_preview_first_batch(source_path,profile,limit=100):
             "response":result,"payloadBytes":len(body),"batchByteLimit":max_bytes,
             "sourceSha256":digest,"batchId":batch_id,"endpointHost":parsed.hostname}
 
+
+def compare_preview_database(source_path,profile):
+    """Compare a local Access DB with Preview imports. The DB file is never uploaded."""
+    endpoint=profile["endpoint"].rstrip("/")
+    parsed=urlparse(endpoint)
+    if parsed.scheme!="https" or parsed.hostname!="savory-hyena-978.ap-southeast-2.convex.site" or parsed.path!="/station-sync":
+        raise RuntimeError("PREVIEW_ENDPOINT_MISMATCH: comparison is locked to approved Preview.")
+    source=Path(source_path)
+    if not source.is_file() or source.suffix.lower() not in (".mdb",".accdb"):
+        raise FileNotFoundError("Choose an existing .MDB or .ACCDB file.")
+    rows,digest=read_rows(str(source),profile)
+    local={}; invalid=[]
+    for row in rows:
+        try:
+            item=map_row(row,profile["columns"],profile.get("timezone","Africa/Cairo"))
+            local.setdefault(item["sourceRecordId"],[]).append(item)
+        except Exception as exc:
+            invalid.append(type(exc).__name__+": "+str(exc))
+    preview={}; cursor=None; pages=0
+    while True:
+        params={"numItems":"100"}
+        if cursor: params["cursor"]=cursor
+        request=Request(endpoint+"?"+urlencode(params),
+            headers={"Authorization":"Bearer "+profile["connectorToken"]},method="GET")
+        with urlopen(request,timeout=int(profile.get("requestTimeoutSeconds",30))) as response:
+            payload=json.loads(response.read().decode("utf-8"))
+        if payload.get("stationCode")!=profile["stationCode"]:
+            raise RuntimeError("PREVIEW_STATION_MISMATCH")
+        for item in payload.get("items",[]):
+            if item.get("machineId")==profile["machineId"]:
+                preview[item["sourceRecordId"]]=item
+        pages+=1
+        if payload.get("isDone",True): break
+        cursor=payload.get("continueCursor")
+        if not cursor: raise RuntimeError("PREVIEW_PAGINATION_ERROR")
+    matched=[]; different=[]; only_access=[]; only_preview=[]
+    duplicates=[key for key,items in local.items() if len(items)>1]
+    for key,items in local.items():
+        server=preview.get(key)
+        if server is None: only_access.append(items[0])
+        elif server.get("sourceHash")==items[0].get("sourceHash"): matched.append((items[0],server))
+        else: different.append((items[0],server))
+    for key,item in preview.items():
+        if key not in local: only_preview.append(item)
+    report=Path.cwd()/("station-comparison-"+datetime.now().strftime("%Y%m%d-%H%M%S")+".csv")
+    fields=["status","sourceRecordId","productionAt","quantity","customerName","projectName","jobNo","concreteGrade","localSourceHash","previewSourceHash","machineId","details"]
+    with report.open("w",encoding="utf-8-sig",newline="") as handle:
+        writer=csv.DictWriter(handle,fieldnames=fields); writer.writeheader()
+        def emit(status,local_item=None,server_item=None,details=""):
+            local_item=local_item or {}; server_item=server_item or {}
+            writer.writerow({"status":status,"sourceRecordId":local_item.get("sourceRecordId") or server_item.get("sourceRecordId"),
+                "productionAt":local_item.get("productionAt",server_item.get("productionAt")),
+                "quantity":local_item.get("quantity",server_item.get("quantity")),
+                "customerName":local_item.get("customerName",server_item.get("customerName")),
+                "projectName":local_item.get("projectName",server_item.get("projectName")),
+                "jobNo":local_item.get("jobNo",server_item.get("jobNo")),
+                "concreteGrade":local_item.get("concreteGrade",server_item.get("concreteGrade")),
+                "localSourceHash":local_item.get("sourceHash",""),"previewSourceHash":server_item.get("sourceHash",""),
+                "machineId":profile["machineId"],"details":details})
+        for a,b in matched: emit("MATCHED",a,b,"ID and full mapped source hash match")
+        for a,b in different: emit("DATA_DIFFERENCE",a,b,"Same ID but source hash differs")
+        for a in only_access: emit("ONLY_IN_ACCESS_DB",a,None,"Not imported to Preview")
+        for b in only_preview: emit("ONLY_IN_PREVIEW",None,b,"Not found in selected Access DB")
+        for error in invalid: emit("INVALID_SOURCE_ROW",None,None,error)
+    return {"mode":"manual_read_only_preview_comparison","stationCode":profile["stationCode"],
+        "machineId":profile["machineId"],"sourceRowsRead":len(rows),
+        "sourceRowsValid":sum(len(items) for items in local.values()),"sourceRowsInvalid":len(invalid),
+        "previewRowsCompared":len(preview),"matched":len(matched),"dataDifferences":len(different),
+        "onlyInAccessDb":len(only_access),"onlyInPreview":len(only_preview),
+        "duplicateSourceIds":len(duplicates),"duplicateSourceIdSamples":duplicates[:20],
+        "sourceSha256":digest,"databaseUploaded":False,"databaseModified":False,
+        "queueRead":False,"queueWritten":False,"recordsSent":0,
+        "reportFile":str(report.resolve()),"previewPagesRead":pages}
+
+
 def run_once(validate_only=False,limit=None,validate_all=False,validate_server=False,send_preview=False):
     setup_logging(); source=load_config(); profile=load_profile()
     if send_preview:
@@ -413,11 +489,35 @@ if __name__=="__main__":
                         help="Required with --validate-only; number of source rows to inspect (1..1000).")
     parser.add_argument("--validate-all",action="store_true",
                         help="Validate every source row in bounded memory without queue writes or network sends.")
+    parser.add_argument("--compare-preview-pick",action="store_true",
+                        help="Open a file picker and compare a local Access DB with Preview without uploading it.")
+    parser.add_argument("--compare-preview-db",help="Explicit local .MDB/.ACCDB path for read-only Preview comparison.")
     parser.add_argument("--send-preview-first-100",action="store_true",
                         help="Send exactly one 100-record batch to the hard-locked Preview endpoint; bypasses the SQLite queue.")
     parser.add_argument("--validate-server-contract",action="store_true",
                         help="Preflight every row against server validators and estimate safe batch sizes; no queue or network.")
     args=parser.parse_args()
+
+    if args.compare_preview_pick and args.compare_preview_db:
+        parser.error("Choose either --compare-preview-pick or --compare-preview-db.")
+    if args.compare_preview_pick or args.compare_preview_db:
+        if args.send_preview_first_100 or args.validate_only or args.validate_all or args.validate_server_contract or args.limit is not None:
+            parser.error("Comparison mode cannot be combined with send or validation modes.")
+        setup_logging()
+        profile=load_profile()
+        if args.compare_preview_pick:
+            import tkinter as tk
+            from tkinter import filedialog
+            root=tk.Tk(); root.withdraw()
+            selected=filedialog.askopenfilename(title="اختر قاعدة بيانات محطة DeMix",filetypes=[("Access database","*.mdb *.accdb"),("All files","*.*")])
+            root.destroy()
+            if not selected:
+                print(json.dumps({"cancelled":True,"databaseUploaded":False,"recordsSent":0},ensure_ascii=False))
+                raise SystemExit(0)
+        else:
+            selected=args.compare_preview_db
+        print(json.dumps(compare_preview_database(selected,profile),ensure_ascii=False))
+        raise SystemExit(0)
     if args.send_preview_first_100 and (args.validate_server_contract or args.validate_only or args.validate_all or args.limit is not None):
         parser.error("--send-preview-first-100 cannot be combined with validation flags or --limit.")
     if args.validate_server_contract and (args.validate_only or args.validate_all or args.limit is not None):
