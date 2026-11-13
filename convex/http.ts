@@ -66,6 +66,34 @@ http.route({
 });
 
 http.route({
+  path: "/station-sync/manifest",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const authorization = request.headers.get("authorization") ?? "";
+    if (!authorization.startsWith("Bearer ")) return new Response("Unauthorized", { status: 401 });
+    const token = authorization.slice(7).trim();
+    if (!token || token.length > 512) return new Response("Unauthorized", { status: 401 });
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+    const tokenHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+    const credential = await ctx.runQuery(internal.stationSync.authenticateConnectorToken, { tokenHash });
+    if (!credential) return new Response("Unauthorized", { status: 401 });
+    const url = new URL(request.url);
+    const cursor = url.searchParams.get("cursor");
+    const rawSize = Number(url.searchParams.get("numItems") ?? "100");
+    const numItems = Number.isInteger(rawSize) ? Math.max(1, Math.min(100, rawSize)) : 100;
+    try {
+      const result = await ctx.runQuery(internal.stationSync.listStationManifest, {
+        stationCode: credential.stationCode, cursor, numItems,
+      });
+      return Response.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "MANIFEST_FAILED";
+      return Response.json({ success: false, error: message }, { status: 400 });
+    }
+  }),
+});
+
+http.route({
   path: "/station-sync",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
