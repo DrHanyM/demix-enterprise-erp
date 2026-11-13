@@ -14,6 +14,7 @@ class ConnectorTests(unittest.TestCase):
     def test_non_numeric_source_id_and_stable_hash(self):
         a=connector.map_row(self.row(),COLUMNS); b=connector.map_row(self.row(),COLUMNS)
         self.assertEqual(a,b); self.assertEqual(a["sourceRecordId"],"LOAD-ARW-2026-00017"); self.assertEqual(len(a["sourceHash"]),64)
+        self.assertEqual(a["driverName"],"Operator")
 
     def test_changed_row_has_new_hash(self):
         row=self.row(); first=connector.map_row(row,COLUMNS); row["output_vol"]=13
