@@ -146,7 +146,7 @@ export default function StationProductionPage() {
               <table className="min-w-[1900px] w-full text-right text-xs">
                 <thead className="bg-slate-100 text-slate-600">
                   <tr>
-                    {["التاريخ والوقت","ID المصدر","العميل","المشروع","أمر التشغيل","الخلطة / الرتبة","رقم الخلاطة","السائق","السيارة","المتر المكعب","GL","FL","WJ","Shui","NAM_WJA1","NAM_WJA2","المشغل"].map((heading) => <th key={heading} className="whitespace-nowrap px-3 py-3 font-bold">{heading}</th>)}
+                    {["التاريخ والوقت","ID المصدر","العميل","المشروع","أمر التشغيل","الخلطة / الرتبة","رقم الخلاطة","السائق","السيارة","المتر المكعب","السن (GL)","الرمل (FL)","الأسمنت (WJ)","المياه (Shui)","Admix 1 (NAM_WJA1)","Admix 2 (NAM_WJA2)","المشغل"].map((heading) => <th key={heading} className="whitespace-nowrap px-3 py-3 font-bold">{heading}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -174,9 +174,18 @@ export default function StationProductionPage() {
           {result?.hasMore && <p className="border-t border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">توجد سجلات إضافية خارج أول 1,000 سجل. ضيّق الفترة الزمنية لعرضها.</p>}
         </section>
 
+
+        <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-7 text-blue-950">
+          <h2 className="font-bold">المطابقة اليدوية مع ملف DB الأصلي</h2>
+          <p className="mt-1">ملف Access لا يُرفع إلى Preview. لأن خادم Convex السحابي لا يستطيع فتح مسار شبكة الشركة الخاص مباشرةً، تتم القراءة محليًا على جهاز لديه صلاحية الوصول إلى ملف المحطة، ثم تُجلب سجلات Preview للمقارنة. الذي لا يغادر الجهاز هو ملف DB نفسه؛ لا توجد عملية إرسال إنتاج أو كتابة في قاعدة المصدر أثناء المقارنة.</p>
+          <p className="mt-2 font-semibold">بعد اعتماد ونشر نسخة أداة المطابقة على Preview، يفتح أمر المقارنة نافذة اختيار ملف DB:</p>
+          <code className="block overflow-x-auto rounded-lg bg-slate-950 p-3 text-left text-xs text-white" dir="ltr">python .\\connector.py --compare-preview-pick</code>
+          <p className="mt-2">ينتج تقرير CSV محليًا يوضح المتطابق، والاختلافات، والموجود في DB فقط، والموجود في Preview فقط. لا تشغّل الأمر قبل نشر نسخة الأداة وتحديث ملف الموصل في مجلد الاختبار.</p>
+        </section>
+
         <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm leading-7 text-slate-600">
           <h2 className="font-bold text-slate-800">ملاحظات قراءة الخامات</h2>
-          <p className="mt-1">يُعرض حاليًا كل من GL وFL وWJ وShui وNAM_WJA1 وNAM_WJA2 بنفس أسماء أعمدة قاعدة المحطة حتى يتم اعتماد الربط النهائي لأسماء السن والرمل والأسمنت والمياه. الإضافتان الكيميائيتان NAM_WJA1 وNAM_WJA2 هما Admix 1 وAdmix 2.</p>
+          <p className="mt-1">تظهر أعمدة الخامات بأسمائها المصدرية بجوار المسميات العربية المقترحة؛ يجب اعتماد الربط النهائي للسن والرمل والأسمنت والمياه بمراجعة أسماء الحقول في ملف DB الفعلي. الإضافتان الكيميائيتان NAM_WJA1 وNAM_WJA2 هما Admix 1 وAdmix 2.</p>
           <p>هذه الشاشة للعرض والفلترة فقط؛ لا تعدّل بيانات المصدر ولا تخصم مخزونًا.</p>
         </section>
       </div>
