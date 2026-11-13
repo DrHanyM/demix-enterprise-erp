@@ -43,14 +43,6 @@ The interval can be changed later in Task Scheduler. It controls station reading
 - Only the read-only comparison request/response travels over HTTPS. The DB.MDB file and its raw rows are never uploaded; the original database is never modified.
 - This command does not send or update production rows. Use the explicit `--send-preview-first-100` / `--send-preview-next-100` commands for controlled upload batches.
 
-## Local DB.MDB comparison (no database upload)
-
-1. In DeMix, open Operations > Production Analysis, clear the date filters, select the required station, and load all result pages until the screen says all results are loaded.
-2. Download the DeMix comparison JSON from that screen.
-3. Run `python .\\compare_db.py` from this connector folder. Select DB.MDB and then the downloaded DeMix JSON when prompted.
-4. The comparison reads a verified local snapshot of DB.MDB in Read Only mode and creates CSV and JSON reports beside the selected export. The Access database is not sent to Vercel or Convex and is never modified.
-5. Comparison keys are the original ID within the station. The report classifies matched, DB-only, DeMix-only, different fields, and duplicate IDs.
-
 ## Historical DB backfill and reconciliation
 
 - Keep the original DB.MDB/Access file read-only; the connector copies a stable snapshot before opening it with read-only ODBC.
