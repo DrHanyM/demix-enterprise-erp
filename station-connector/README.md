@@ -19,10 +19,19 @@ The interval can be changed later in Task Scheduler. It controls station reading
 - The original Access file is copied to a local temporary snapshot; ODBC opens only the snapshot with ReadOnly=1.
 - Source SHA-256 and file metadata are checked around the copy. A changing source aborts the cycle.
 - Local durable queue: D:\DEMIX_SYNC\DATA\SyncQueue.db.
-- New and changed rows are detected by content hash, without assuming source ID is numeric or sequential.
+- New and changed rows are detected by a SHA-256 hash of the **entire source row**, including material columns and operational fields; a change to GL/FL/WJ/Shui is resent even when production quantity is unchanged.
 - Local and server deduplication identity is station + machine + source record ID. The connector token is station-specific; it is not a shared company-wide token.
+- Every original Access column is preserved in the imported record's rawSourceData payload. Truck_No and OperationState are also mapped to searchable typed fields. GL/FL/WJ/Shui remain verbatim source values; no units or inventory meanings are assumed until an authorized mapping is configured.
+- Batch payloads are dynamically split to remain below a 220 KB safety ceiling. Records are marked sent only after the server acknowledges the full batch count.
 - A record is marked sent only after a successful server acknowledgement. Failed sends remain pending and retry.
 - Imported records remain separate from manually entered production records. No inventory deduction or automatic posting occurs.
+
+## Historical DB backfill and reconciliation
+
+- Keep the original DB.MDB/Access file read-only; the connector copies a stable snapshot before opening it with read-only ODBC.
+- The local SQLite outbox is durable. An interrupted send is retried, and server batch IDs plus station/machine/source IDs prevent duplicate inserts.
+- For the historical backfill, compare the source row count with the server's received/inserted/updated counters after all pending batches are acknowledged. Do not clear the outbox before reconciliation.
+- Before enabling the seven-minute scheduled task, verify the actual table/column names, source ID uniqueness, source write-completion point, ODBC driver, and UNC permissions under the task account.
 
 ## Package files
 
