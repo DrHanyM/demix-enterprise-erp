@@ -277,13 +277,6 @@ export const listImportedProductionPage = query({
     stationId: v.optional(v.id("stations")),
     fromAt: v.optional(v.number()),
     toAt: v.optional(v.number()),
-    customerName: v.optional(v.string()),
-    projectName: v.optional(v.string()),
-    jobNo: v.optional(v.string()),
-    concreteGrade: v.optional(v.string()),
-    truckNo: v.optional(v.string()),
-    driverName: v.optional(v.string()),
-    operationState: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
@@ -291,22 +284,15 @@ export const listImportedProductionPage = query({
     const fromAt = args.fromAt ?? 0;
     const toAt = args.toAt ?? Date.now();
     if (fromAt > toAt) throw new Error("INVALID_PRODUCTION_RANGE");
-    let base: any = args.stationId
+    const base = args.stationId
       ? ctx.db.query("stationProductionImports").withIndex("by_station_time", q =>
           q.eq("stationId", args.stationId!).gte("productionAt", fromAt).lte("productionAt", toAt))
       : ctx.db.query("stationProductionImports").withIndex("by_productionAt", q =>
           q.gte("productionAt", fromAt).lte("productionAt", toAt));
-    if (args.customerName) base = base.filter((q: any) => q.eq(q.field("customerName"), args.customerName));
-    if (args.projectName) base = base.filter((q: any) => q.eq(q.field("projectName"), args.projectName));
-    if (args.jobNo) base = base.filter((q: any) => q.eq(q.field("jobNo"), args.jobNo));
-    if (args.concreteGrade) base = base.filter((q: any) => q.eq(q.field("concreteGrade"), args.concreteGrade));
-    if (args.truckNo) base = base.filter((q: any) => q.eq(q.field("truckNo"), args.truckNo));
-    if (args.driverName) base = base.filter((q: any) => q.or(q.eq(q.field("driverName"), args.driverName), q.eq(q.field("operatorName"), args.driverName)));
-    if (args.operationState) base = base.filter((q: any) => q.eq(q.field("operationState"), args.operationState));
     const page = await base.order("desc").paginate(args.paginationOpts);
     const stations = await ctx.db.query("stations").collect();
-    const names = new Map(stations.map(s => [s._id, { name: s.name, code: s.code }]));
-    return { ...page, page: page.page.map((r: any) => ({ ...r, station: names.get(r.stationId) ?? null })) };
+    const names = new Map(stations.map(station => [station._id, { name: station.name, code: station.code }]));
+    return { ...page, page: page.page.map(record => ({ ...record, station: names.get(record.stationId) ?? null })) };
   },
 });
 
