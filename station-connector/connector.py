@@ -2,7 +2,7 @@
 """DeMix station connector. Access source is never modified."""
 from __future__ import annotations
 import hashlib, json, logging, platform, shutil, sqlite3, tempfile
-from datetime import datetime
+from datetime import date, datetime, time
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -12,6 +12,7 @@ PROFILE_FILE=ROOT/"station-profile.json"
 QUEUE_FILE=Path(r"D:\DEMIX_SYNC\DATA\SyncQueue.db")
 LOG_DIR=Path(r"D:\DEMIX_SYNC\LOGS")
 BATCH_SIZE=100
+MAX_BATCH_BYTES=220_000
 
 def setup_logging():
     LOG_DIR.mkdir(parents=True,exist_ok=True)
@@ -34,7 +35,11 @@ def load_profile():
         if not str(p.get(k,"")).strip() or any(x in str(p.get(k,"")) for x in ("REPLACE_","PROVISIONED_","YOUR-PREVIEW")): raise RuntimeError("Missing station profile field: "+k)
     p.setdefault("machineId",platform.node())
     p.setdefault("table","sRecords")
-    p.setdefault("columns",{"id":"id","time":"sctime","quantity":"output_vol","job":"job_no","grade":"strength","operator":"operator","customer":"CUST_NM","project":"PROJ_NM"})
+    p.setdefault("columns",{})
+    default_columns={"id":"id","time":"sctime","quantity":"output_vol","job":"job_no","grade":"strength",
+        "operator":"operator","customer":"CUST_NM","project":"PROJ_NM","truck":"Truck_No",
+        "operationState":"OperationState","gl":"GL","fl":"FL","wj":"WJ","shui":"Shui"}
+    for key,value in default_columns.items(): p["columns"].setdefault(key,value)
     p.setdefault("odbcDriver","Microsoft Access Driver (*.mdb, *.accdb)")
     p.setdefault("requestTimeoutSeconds",30)
     return p
@@ -89,6 +94,12 @@ def clean(value):
     value=str(value).strip()
     return value or None
 
+def json_safe(value):
+    if value is None or isinstance(value,(str,int,float,bool)): return value
+    if isinstance(value,(datetime,date,time)): return value.isoformat()
+    if isinstance(value,bytes): return {"__type":"bytes","hex":value.hex()}
+    return str(value)
+
 def map_row(row,columns,timezone_name="Africa/Cairo"):
     values={str(k).lower():v for k,v in row.items()}
     def get(alias):
@@ -97,11 +108,14 @@ def map_row(row,columns,timezone_name="Africa/Cairo"):
     source_id=clean(get("id"))
     if source_id is None: raise ValueError("Source row has no configured unique ID")
     quantity=get("quantity")
+    raw_data={str(k):json_safe(v) for k,v in row.items()}
     result={"sourceRecordId":source_id,"productionAt":epoch_ms(get("time"),timezone_name),
         "customerName":clean(get("customer")),"projectName":clean(get("project")),
         "jobNo":clean(get("job")),"concreteGrade":clean(get("grade")),
-        "quantity":float(quantity) if quantity is not None else None,"operatorName":clean(get("operator"))}
-    raw=json.dumps(result,ensure_ascii=False,sort_keys=True,separators=(",",":"),default=str)
+        "quantity":float(quantity) if quantity is not None else None,"operatorName":clean(get("operator")),
+        "truckNo":clean(get("truck")),"operationState":clean(get("operationState")),
+        "rawSourceData":raw_data}
+    raw=json.dumps(raw_data,ensure_ascii=False,sort_keys=True,separators=(",",":"))
     result["sourceHash"]=hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return {k:v for k,v in result.items() if v is not None}
 
@@ -136,11 +150,17 @@ def next_batch(db,profile):
     rows=db.execute("SELECT source_id,source_hash,payload FROM outbox WHERE station=? AND machine=? AND status='pending' ORDER BY queued_at,source_id LIMIT ?",
         (station,machine,BATCH_SIZE)).fetchall()
     if not rows:return None
+    while rows:
+        records=[json.loads(r[2]) for r in rows]
+        probe=json.dumps({"stationCode":station,"machineId":machine,"batchId":"x","records":records},ensure_ascii=False,separators=(",",":")).encode("utf-8")
+        if len(probe)<=MAX_BATCH_BYTES: break
+        if len(rows)==1: raise RuntimeError("A single source record exceeds the safe HTTP batch size; it remains queued for review.")
+        rows=rows[:max(1,len(rows)//2)]
     material="|".join(r[0]+":"+r[1] for r in rows)
     batch=hashlib.sha256((station+"|"+machine+"|"+material).encode()).hexdigest()
     db.executemany("UPDATE outbox SET status='sending',batch_id=? WHERE station=? AND machine=? AND source_id=?",
         [(batch,station,machine,r[0]) for r in rows]); db.commit()
-    return batch,[json.loads(r[2]) for r in rows],[r[0] for r in rows]
+    return batch,records,[r[0] for r in rows]
 
 def send_pending(db,profile):
     sent=0; station=profile["stationCode"]; machine=profile["machineId"]
@@ -149,11 +169,13 @@ def send_pending(db,profile):
         if item is None:break
         batch,records,ids=item
         try:
-            body=json.dumps({"stationCode":station,"machineId":machine,"batchId":batch,"records":records},ensure_ascii=False).encode()
+            body=json.dumps({"stationCode":station,"machineId":machine,"batchId":batch,"records":records},ensure_ascii=False,separators=(",",":")).encode("utf-8")
+            if len(body)>MAX_BATCH_BYTES: raise RuntimeError("Batch exceeded the safe HTTP size limit; records remain queued.")
             request=Request(profile["endpoint"].rstrip("/"),data=body,headers={"Authorization":"Bearer "+profile["connectorToken"],"Content-Type":"application/json"},method="POST")
             with urlopen(request,timeout=int(profile["requestTimeoutSeconds"])) as response:
                 result=json.loads(response.read().decode())
-                if response.status!=200 or not result.get("success"):raise RuntimeError("Server did not acknowledge batch")
+                if response.status!=200 or not result.get("success") or result.get("received")!=len(records):
+                    raise RuntimeError("Server did not acknowledge the complete batch")
             now=datetime.now().astimezone().isoformat()
             db.executemany("UPDATE outbox SET status='sent',sent_at=?,last_error=NULL WHERE station=? AND machine=? AND source_id=? AND batch_id=?",
                 [(now,station,machine,x,batch) for x in ids]); db.commit(); sent+=len(ids)
