@@ -299,7 +299,7 @@ def send_pending(db,profile):
 
 
 def send_preview_first_batch(source_path,profile,limit=100):
-    """Send exactly one bounded batch directly; bypasses SQLite/outbox entirely."""
+    """Send only the first byte-bounded batch directly; bypasses SQLite/outbox."""
     from urllib.parse import urlparse
     endpoint=profile["endpoint"].rstrip("/")
     parsed=urlparse(endpoint)
@@ -308,13 +308,21 @@ def send_preview_first_batch(source_path,profile,limit=100):
     if not profile.get("connectorToken"):
         raise RuntimeError("Missing station connector credential.")
     if limit!=100:
-        raise ValueError("The approved one-time Preview test is fixed at exactly 100 source rows.")
+        raise ValueError("The one-time Preview test reads at most the first 100 source rows.")
     rows,digest=read_rows(source_path,profile,limit=limit)
-    if len(rows)!=100:
-        raise RuntimeError(f"Expected exactly 100 source rows; read {len(rows)}. Nothing was sent.")
-    records=[map_row(row,profile["columns"],profile.get("timezone","Africa/Cairo")) for row in rows]
-    # Reapply the server's record-level constraints before any network request.
-    for record in records:
+    if not rows:
+        raise RuntimeError("No source rows found; nothing was sent.")
+    station=profile["stationCode"]; machine=profile["machineId"]
+    max_bytes=int(profile.get("maxBatchBytes",180000))
+    if max_bytes<1024 or max_bytes>180000:
+        raise RuntimeError("Configured batch byte limit is outside the approved safe range.")
+    records=[]
+    def make_body(candidate,batch_id):
+        payload={"stationCode":station,"machineId":machine,"batchId":batch_id,"records":candidate}
+        return json.dumps(payload,ensure_ascii=False,separators=(",",":"),allow_nan=False).encode("utf-8")
+    # Select a contiguous prefix only. Never skip an oversized row and send later rows.
+    for row in rows:
+        record=map_row(row,profile["columns"],profile.get("timezone","Africa/Cairo"))
         if not record["sourceRecordId"].strip() or _js_length(record["sourceRecordId"])>160:
             raise RuntimeError("INVALID_SOURCE_RECORD_ID; nothing was sent.")
         if not record["sourceHash"].strip() or _js_length(record["sourceHash"])>128:
@@ -333,14 +341,21 @@ def send_preview_first_batch(source_path,profile,limit=100):
         raw=record.get("rawSourceData")
         if raw is not None and not isinstance(raw,dict):
             raise RuntimeError("INVALID_RAW_SOURCE_DATA; nothing was sent.")
-    station=profile["stationCode"]; machine=profile["machineId"]
+        candidate=records+[record]
+        # Batch ID is fixed-width, so a zero-filled placeholder gives exact envelope sizing.
+        candidate_body=make_body(candidate,"0"*64)
+        if len(candidate)>100 or len(candidate_body)>max_bytes or len(candidate_body)>256000:
+            if not records:
+                raise RuntimeError("FIRST_RECORD_EXCEEDS_SAFE_BATCH_LIMIT; nothing was sent.")
+            break
+        records=candidate
+    if not records:
+        raise RuntimeError("No records fit within the safe batch limit; nothing was sent.")
     material="|".join(r["sourceRecordId"]+":"+r["sourceHash"] for r in records)
     batch_id=hashlib.sha256((station+"|"+machine+"|"+material).encode("utf-8")).hexdigest()
-    payload={"stationCode":station,"machineId":machine,"batchId":batch_id,"records":records}
-    body=json.dumps(payload,ensure_ascii=False,separators=(",",":"),allow_nan=False).encode("utf-8")
-    max_bytes=int(profile.get("maxBatchBytes",180000))
+    body=make_body(records,batch_id)
     if len(body)>max_bytes or len(body)>256000:
-        raise RuntimeError(f"PREVIEW_BATCH_TOO_LARGE ({len(body)} bytes); nothing was sent.")
+        raise RuntimeError("FINAL_BATCH_SIZE_CHECK_FAILED; nothing was sent.")
     request=Request(endpoint,data=body,headers={
         "Authorization":"Bearer "+profile["connectorToken"],
         "Content-Type":"application/json"
@@ -354,10 +369,11 @@ def send_preview_first_batch(source_path,profile,limit=100):
     except Exception:
         logging.exception("One-time Preview batch send failed; no automatic retry was attempted.")
         raise
-    return {"mode":"preview_one_batch","read":len(rows),"sent":len(records),
+    return {"mode":"preview_one_batch","sourceRowsInspected":len(rows),
+            "sent":len(records),"remainingFromInspectedRows":len(rows)-len(records),
             "queueWritten":False,"queueRead":False,"batchesSent":1,
-            "response":result,"payloadBytes":len(body),"sourceSha256":digest,
-            "batchId":batch_id,"endpointHost":parsed.hostname}
+            "response":result,"payloadBytes":len(body),"batchByteLimit":max_bytes,
+            "sourceSha256":digest,"batchId":batch_id,"endpointHost":parsed.hostname}
 
 def run_once(validate_only=False,limit=None,validate_all=False,validate_server=False,send_preview=False):
     setup_logging(); source=load_config(); profile=load_profile()
