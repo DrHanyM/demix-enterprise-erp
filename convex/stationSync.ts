@@ -182,6 +182,67 @@ export const checkSourceRecords = internalQuery({
   },
 });
 
+export const listStationManifest = internalQuery({
+  args: {
+    stationCode: v.string(),
+    cursor: v.union(v.string(), v.null()),
+    numItems: v.number(),
+  },
+  handler: async (ctx, args) => {
+    if (!Number.isInteger(args.numItems) || args.numItems < 1 || args.numItems > 500) throw new Error("INVALID_MANIFEST_PAGE_SIZE");
+    const station = await ctx.db.query("stations").withIndex("by_code", q => q.eq("code", args.stationCode)).unique();
+    if (!station || station.status !== "active") throw new Error("STATION_NOT_FOUND_OR_INACTIVE");
+    const page = await ctx.db.query("stationProductionImports")
+      .withIndex("by_station_time", q => q.eq("stationId", station._id))
+      .paginate({ cursor: args.cursor, numItems: args.numItems });
+    return {
+      ...page,
+      page: page.page.map(row => ({ sourceRecordId: row.sourceRecordId, sourceHash: row.sourceHash, machineId: row.machineId, productionAt: row.productionAt })),
+    };
+  },
+});
+
+export const saveReconciliationReport = internalMutation({
+  args: {
+    stationCode: v.string(), machineId: v.string(),
+    sourceRecords: v.number(), serverRecords: v.number(), matched: v.number(),
+    fileOnly: v.number(), demixOnly: v.number(), different: v.number(), duplicates: v.number(),
+    details: v.array(v.object({
+      status: v.string(), sourceRecordId: v.string(),
+      sourceHash: v.optional(v.string()), serverHash: v.optional(v.string()),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const station = await ctx.db.query("stations").withIndex("by_code", q => q.eq("code", args.stationCode)).unique();
+    if (!station || station.status !== "active") throw new Error("STATION_NOT_FOUND_OR_INACTIVE");
+    const counts = [args.sourceRecords,args.serverRecords,args.matched,args.fileOnly,args.demixOnly,args.different,args.duplicates];
+    if (counts.some(x => !Number.isInteger(x) || x < 0) || args.details.length > 500) throw new Error("INVALID_RECONCILIATION_REPORT");
+    const id = await ctx.db.insert("stationReconciliationReports", {
+      stationId: station._id, machineId: args.machineId, comparedAt: Date.now(),
+      sourceRecords: args.sourceRecords, serverRecords: args.serverRecords, matched: args.matched,
+      fileOnly: args.fileOnly, demixOnly: args.demixOnly, different: args.different,
+      duplicates: args.duplicates, details: args.details,
+    });
+    return { success: true, reportId: id };
+  },
+});
+
+export const listReconciliationReports = query({
+  args: { stationId: v.optional(v.id("stations")), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    await requireCentralPermission(ctx, "production.view");
+    const limit = Math.max(1, Math.min(20, Math.floor(args.limit ?? 5)));
+    const rows = args.stationId
+      ? await ctx.db.query("stationReconciliationReports")
+          .withIndex("by_station_comparedAt", q => q.eq("stationId", args.stationId!))
+          .order("desc").take(limit)
+      : await ctx.db.query("stationReconciliationReports").order("desc").take(limit);
+    const stations = await ctx.db.query("stations").collect();
+    const names = new Map(stations.map(x => [x._id, { name: x.name, code: x.code }]));
+    return rows.map(x => ({ ...x, station: names.get(x.stationId) ?? null }));
+  },
+});
+
 export const recordFailure = internalMutation({
   args: { stationCode: v.string(), message: v.string() },
   handler: async (ctx, args) => {
