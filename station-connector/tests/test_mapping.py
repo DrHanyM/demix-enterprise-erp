@@ -19,6 +19,22 @@ class ConnectorTests(unittest.TestCase):
         row=self.row(); first=connector.map_row(row,COLUMNS); row["output_vol"]=13
         self.assertNotEqual(first["sourceHash"],connector.map_row(row,COLUMNS)["sourceHash"])
 
+    def test_material_fields_are_preserved_and_affect_hash(self):
+        row=self.row(); row.update({"GL":245.5,"FL":80,"WJ":160,"Shui":32,"Truck_No":"TR-07","OperationState":"Completed"})
+        mapped=connector.map_row(row,COLUMNS)
+        self.assertEqual(mapped["rawSourceData"]["GL"],245.5)
+        self.assertEqual(mapped["rawSourceData"]["FL"],80)
+        self.assertEqual(mapped["rawSourceData"]["WJ"],160)
+        self.assertEqual(mapped["rawSourceData"]["Shui"],32)
+        self.assertEqual(mapped["truckNo"],"TR-07")
+        self.assertEqual(mapped["operationState"],"Completed")
+        row["GL"]=246.5
+        self.assertNotEqual(mapped["sourceHash"],connector.map_row(row,COLUMNS)["sourceHash"])
+
+    def test_raw_access_dates_are_json_safe(self):
+        row=self.row(); mapped=connector.map_row(row,COLUMNS)
+        self.assertEqual(mapped["rawSourceData"]["sctime"],row["sctime"].isoformat())
+
     def test_missing_source_id_is_rejected(self):
         row=self.row(); del row["id"]
         with self.assertRaises(ValueError): connector.map_row(row,COLUMNS)
