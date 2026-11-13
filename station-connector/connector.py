@@ -38,7 +38,7 @@ def load_profile():
     p.setdefault("table","sRecords")
     p.setdefault("columns",{})
     default_columns={"id":"id","time":"sctime","quantity":"output_vol","job":"job_no","grade":"strength",
-        "operator":"operator","customer":"CUST_NM","project":"PROJ_NM","truck":"Truck_No",
+        "operator":"operator","driver":"Driver","customer":"CUST_NM","project":"PROJ_NM","truck":"Truck_No",
         "operationState":"OperationState","gl":"GL","fl":"FL","wj":"WJ","shui":"Shui"}
     for key,value in default_columns.items(): p["columns"].setdefault(key,value)
     p.setdefault("odbcDriver","Microsoft Access Driver (*.mdb, *.accdb)")
@@ -116,7 +116,7 @@ def map_row(row,columns,timezone_name="Africa/Cairo"):
     result={"sourceRecordId":source_id,"productionAt":epoch_ms(get("time"),timezone_name),
         "customerName":clean(get("customer")),"projectName":clean(get("project")),
         "jobNo":clean(get("job")),"concreteGrade":clean(get("grade")),
-        "quantity":numeric_quantity,"operatorName":clean(get("operator")),
+        "quantity":numeric_quantity,"operatorName":clean(get("operator")),"driverName":clean(get("driver")),
         "truckNo":clean(get("truck")),"operationState":clean(get("operationState")),
         "rawSourceData":raw_data}
     raw=json.dumps(raw_data,ensure_ascii=False,sort_keys=True,separators=(",",":"))
