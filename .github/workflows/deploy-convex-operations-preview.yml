@@ -1,0 +1,57 @@
+name: Deploy Convex Operations Preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_preview:
+        description: "Deploy the integrated operations branch to its dedicated Convex Preview deployment only"
+        required: true
+        type: choice
+        options:
+          - "No - cancel"
+          - "DEPLOY OPERATIONS PREVIEW"
+        default: "No - cancel"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: convex-operations-preview
+  cancel-in-progress: false
+
+jobs:
+  deploy-preview:
+    if: inputs.confirm_preview == 'DEPLOY OPERATIONS PREVIEW'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the integrated operations branch only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: feature/integrated-operations-modules
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Require the dedicated Operations Preview deploy key
+        shell: bash
+        env:
+          OPERATIONS_PREVIEW_DEPLOY_KEY: ${{ secrets.CONVEX_OPERATIONS_PREVIEW_DEPLOY_KEY }}
+        run: |
+          if [[ -z "$OPERATIONS_PREVIEW_DEPLOY_KEY" ]]; then
+            echo "::error::Repository secret CONVEX_OPERATIONS_PREVIEW_DEPLOY_KEY is missing. Add only the deploy key for the dedicated Operations Preview deployment. Do not reuse the base Preview or Production key."
+            exit 1
+          fi
+
+      - name: Deploy Convex functions and schema to Operations Preview
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_OPERATIONS_PREVIEW_DEPLOY_KEY }}
+        run: npx convex deploy --yes
