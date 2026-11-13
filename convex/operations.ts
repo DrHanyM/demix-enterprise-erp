@@ -249,3 +249,27 @@ export const listOperationsOverview = query({
     };
   },
 });
+
+
+export const listImportedProduction = query({
+  args: {
+    stationId: v.optional(v.id("stations")),
+    fromAt: v.optional(v.number()),
+    toAt: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireCentralPermission(ctx, "production.view");
+    const fromAt = args.fromAt ?? 0, toAt = args.toAt ?? Date.now();
+    const limit = Math.max(1, Math.min(1000, Math.floor(args.limit ?? 500)));
+    if (fromAt > toAt) throw new Error("INVALID_PRODUCTION_RANGE");
+    const rows = args.stationId
+      ? await ctx.db.query("stationProductionImports").withIndex("by_station_time", q => q.eq("stationId", args.stationId!)).order("desc").take(5000)
+      : await ctx.db.query("stationProductionImports").order("desc").take(5000);
+    const stations = await ctx.db.query("stations").collect();
+    const names = new Map(stations.map(s => [s._id, { name: s.name, code: s.code }]));
+    return rows.filter(r => r.productionAt >= fromAt && r.productionAt <= toAt)
+      .sort((a,b)=>b.productionAt-a.productionAt).slice(0,limit)
+      .map(r => ({ ...r, station: names.get(r.stationId) ?? null }));
+  },
+});
