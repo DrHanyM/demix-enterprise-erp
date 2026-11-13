@@ -199,7 +199,7 @@ def check_server_records(profile, records):
             raise RuntimeError("Preview could not confirm existing source records")
         return {str(x["sourceRecordId"]):str(x["sourceHash"]) for x in result["matches"]}
 
-def send_preview_next_100():
+def send_preview_window(start,end):
     setup_logging()
     profile=load_profile()
     host=(urlsplit(profile["endpoint"]).hostname or "").lower()
@@ -207,10 +207,11 @@ def send_preview_next_100():
         raise RuntimeError("Safety stop: this command is restricted to the approved Convex Preview deployment.")
     source=load_config()
     rows,digest=read_rows(source,profile)
+    window=rows[start:end]
     unique={}
     duplicates=0
     conflicts=set()
-    for row in rows:
+    for row in window:
         item=map_row(row,profile["columns"],profile.get("timezone","Africa/Cairo"))
         key=item["sourceRecordId"]
         if key in unique:
@@ -218,21 +219,14 @@ def send_preview_next_100():
             if unique[key]["sourceHash"]!=item["sourceHash"]: conflicts.add(key)
             continue
         unique[key]=item
-    candidates=[]
     items=list(unique.values())
-    for start in range(0,len(items),100):
-        group=items[start:start+100]
-        check=check_server_records(profile,[{"sourceRecordId":x["sourceRecordId"],"sourceHash":x["sourceHash"]} for x in group])
-        for item in group:
-            key=item["sourceRecordId"]
-            if key in conflicts: continue
-            if check.get(key)!=item["sourceHash"]:
-                candidates.append(item)
-        if len(candidates)>=100: break
-    candidates=candidates[:100]
+    check=check_server_records(profile,[{"sourceRecordId":x["sourceRecordId"],"sourceHash":x["sourceHash"]} for x in items]) if items else {}
+    candidates=[item for item in items if item["sourceRecordId"] not in conflicts and check.get(item["sourceRecordId"])!=item["sourceHash"]]
     if not candidates:
-        result={"read":len(rows),"pending":0,"sent":0,"inserted":0,"updated":0,
-            "duplicateSourceRows":duplicates,"conflictingSourceIds":len(conflicts),"queueWritten":False,"sourceSha256":digest,"message":"No unsent or changed records found in Preview."}
+        result={"read":len(rows),"windowStart":start+1 if window else None,"windowEnd":start+len(window) if window else None,
+            "scanned":len(window),"pending":0,"sent":0,"inserted":0,"updated":0,"alreadyMatched":len(items)-len(conflicts),
+            "duplicateSourceRows":duplicates,"conflictingSourceIds":len(conflicts),"queueWritten":False,
+            "sourceSha256":digest,"message":"No unsent or changed records found in this source window."}
         print(json.dumps(result,ensure_ascii=False)); return result
     batches=[]; current=[]
     for item in candidates:
@@ -255,10 +249,17 @@ def send_preview_next_100():
             if response.status!=200 or not result.get("success") or result.get("received")!=len(records):
                 raise RuntimeError("Preview did not acknowledge the complete batch; stop and inspect the response.")
         sent+=result["received"]; inserted+=result.get("inserted",0); updated+=result.get("updated",0); batch_ids.append(batch)
-    result={"read":len(rows),"pending":len(candidates),"sent":sent,"inserted":inserted,"updated":updated,
-        "duplicateSourceRows":duplicates,"conflictingSourceIds":len(conflicts),"queueWritten":False,
-        "batchIds":batch_ids,"sourceSha256":digest}
+    result={"read":len(rows),"windowStart":start+1,"windowEnd":start+len(window),"scanned":len(window),
+        "pending":len(candidates),"sent":sent,"inserted":inserted,"updated":updated,
+        "alreadyMatched":len(items)-len(candidates)-len(conflicts),"duplicateSourceRows":duplicates,
+        "conflictingSourceIds":len(conflicts),"queueWritten":False,"batchIds":batch_ids,"sourceSha256":digest}
     print(json.dumps(result,ensure_ascii=False)); return result
+
+def send_preview_first_100():
+    return send_preview_window(0,100)
+
+def send_preview_next_100():
+    return send_preview_window(100,200)
 
 def fetch_server_manifest(profile):
     endpoint=profile["endpoint"].rstrip("/")+"/manifest"
@@ -340,11 +341,13 @@ def run_once():
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
-    parser.add_argument("--send-preview-next-100",action="store_true",help="Send up to 100 not-yet-synced records to the approved Preview only; does not write the SQLite queue.")
+    parser.add_argument("--send-preview-first-100",action="store_true",help="Resume source rows 1-100; Preview IDs already present with the same hash are skipped.")
+    parser.add_argument("--send-preview-next-100",action="store_true",help="Send source rows 101-200; records already present with the same hash are skipped.")
     parser.add_argument("--compare-preview",action="store_true",help="Compare the local read-only Access database with Preview and save only the reconciliation summary.")
     args=parser.parse_args()
     try:
-        if args.send_preview_next_100: send_preview_next_100()
+        if args.send_preview_first_100: send_preview_first_100()
+        elif args.send_preview_next_100: send_preview_next_100()
         elif args.compare_preview: compare_preview()
         else: print(json.dumps(run_once(),ensure_ascii=False))
     except Exception:
