@@ -274,12 +274,19 @@ export const listImportedProduction = query({
     stationId: v.optional(v.id("stations")),
     fromAt: v.optional(v.number()),
     toAt: v.optional(v.number()),
+    customerName: v.optional(v.string()),
+    projectName: v.optional(v.string()),
+    jobNo: v.optional(v.string()),
+    concreteGrade: v.optional(v.string()),
+    truckNo: v.optional(v.string()),
+    operatorName: v.optional(v.string()),
+    operationState: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireCentralPermission(ctx, "production.view");
     const fromAt = args.fromAt ?? 0, toAt = args.toAt ?? Date.now();
-    const limit = Math.max(1, Math.min(1000, Math.floor(args.limit ?? 500)));
+    const limit = Math.max(1, Math.min(1000, Math.floor(args.limit ?? 1000)));
     if (fromAt > toAt) throw new Error("INVALID_PRODUCTION_RANGE");
     const rows = args.stationId
       ? await ctx.db.query("stationProductionImports")
@@ -288,8 +295,14 @@ export const listImportedProduction = query({
       : await ctx.db.query("stationProductionImports")
           .withIndex("by_productionAt", q => q.gte("productionAt", fromAt).lte("productionAt", toAt))
           .order("desc").take(limit);
+    const matches = (actual: string | undefined, expected: string | undefined) =>
+      !expected || (actual ?? "").trim().toLocaleLowerCase("ar").includes(expected.trim().toLocaleLowerCase("ar"));
+    const filtered = rows.filter(r => matches(r.customerName, args.customerName)
+      && matches(r.projectName, args.projectName) && matches(r.jobNo, args.jobNo)
+      && matches(r.concreteGrade, args.concreteGrade) && matches(r.truckNo, args.truckNo)
+      && matches(r.operatorName, args.operatorName) && matches(r.operationState, args.operationState));
     const stations = await ctx.db.query("stations").collect();
     const names = new Map(stations.map(s => [s._id, { name: s.name, code: s.code }]));
-    return rows.map(r => ({ ...r, station: names.get(r.stationId) ?? null }));
+    return filtered.map(r => ({ ...r, station: names.get(r.stationId) ?? null }));
   },
 });
