@@ -84,6 +84,36 @@ def read_rows(source_path,profile,limit=None):
         if connection is not None: connection.close()
         shutil.rmtree(folder,ignore_errors=True)
 
+def validate_all_rows(source_path,profile):
+    """Validate every source row in bounded memory; never opens the queue or sends data."""
+    try: import pyodbc
+    except ImportError as exc: raise RuntimeError("pyodbc missing; rerun INSTALL.ps1") from exc
+    folder,snapshot,digest=snapshot_database(source_path); connection=None
+    valid=0; invalid=0; errors={}; total=0
+    try:
+        driver=profile["odbcDriver"]
+        connection=pyodbc.connect(f"DRIVER={{{driver}}};DBQ={snapshot};ReadOnly=1;",readonly=True,timeout=15)
+        cursor=connection.cursor()
+        cursor.execute("SELECT * FROM "+quote_identifier(profile["table"]))
+        names=[c[0] for c in cursor.description]
+        while True:
+            batch=cursor.fetchmany(500)
+            if not batch: break
+            for values in batch:
+                total+=1
+                try:
+                    map_row(dict(zip(names,values)),profile["columns"],profile.get("timezone","Africa/Cairo"))
+                    valid+=1
+                except Exception as exc:
+                    invalid+=1
+                    key=type(exc).__name__+": "+str(exc)
+                    errors[key]=errors.get(key,0)+1
+        return {"mode":"validate_all","read":total,"valid":valid,"invalid":invalid,
+                "validationErrors":errors,"sourceSha256":digest,"queueWritten":False,"sent":0}
+    finally:
+        if connection is not None: connection.close()
+        shutil.rmtree(folder,ignore_errors=True)
+
 def epoch_ms(value,timezone_name="Africa/Cairo"):
     from zoneinfo import ZoneInfo
     if value is None: raise ValueError("Production timestamp is empty")
@@ -194,8 +224,10 @@ def send_pending(db,profile):
             logging.exception("Send failed; records retained for retry"); break
     return sent
 
-def run_once(validate_only=False,limit=None):
+def run_once(validate_only=False,limit=None,validate_all=False):
     setup_logging(); source=load_config(); profile=load_profile()
+    if validate_all:
+        return validate_all_rows(source,profile)
     if validate_only and limit is None:
         raise ValueError("--validate-only requires an explicit --limit (1..1000).")
     rows,digest=read_rows(source,profile,limit if validate_only else None)
@@ -224,8 +256,13 @@ if __name__=="__main__":
                         help="Read a bounded sample and validate mapping without writing the queue or sending data.")
     parser.add_argument("--limit",type=int,
                         help="Required with --validate-only; number of source rows to inspect (1..1000).")
+    parser.add_argument("--validate-all",action="store_true",
+                        help="Validate every source row in bounded memory without queue writes or network sends.")
     args=parser.parse_args()
+    if args.validate_all and (args.validate_only or args.limit is not None):
+        parser.error("--validate-all cannot be combined with --validate-only or --limit.")
     try:
-        print(json.dumps(run_once(validate_only=args.validate_only,limit=args.limit),ensure_ascii=False))
+        print(json.dumps(run_once(validate_only=args.validate_only,limit=args.limit,
+                                  validate_all=args.validate_all),ensure_ascii=False))
     except Exception:
         setup_logging(); logging.exception("Sync cycle failed"); raise
