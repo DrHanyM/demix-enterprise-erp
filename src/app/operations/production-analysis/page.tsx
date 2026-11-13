@@ -45,8 +45,8 @@ export default function ProductionAnalysisPage(){
  const [mixer,setMixer]=useState(""),[driver,setDriver]=useState(""),[job,setJob]=useState(""),[state,setState]=useState(""),[search,setSearch]=useState("");
  const invalid=Boolean(from&&to&&from>to),fromAt=from?new Date(from+"T00:00:00").getTime():undefined,toAt=to?new Date(to+"T23:59:59.999").getTime():undefined;
  const stations=useQuery(api.stations.listActiveStations,{});
- const reports=useQuery(api.stationSync.listReconciliationReports,{limit:5});
- const args=invalid?"skip":{stationId:stationId?(stationId as any):undefined,fromAt,toAt};
+ const reports=useQuery(api.stationSync.listReconciliationReports,{stationId:stationId?(stationId as any):undefined,limit:5});
+ const args=invalid?"skip":{stationId:stationId?(stationId as any):undefined,fromAt,toAt,customerName:customer||undefined,projectName:project||undefined,jobNo:job||undefined,concreteGrade:mix||undefined,truckNo:mixer||undefined,driverName:driver||undefined,operationState:state||undefined};
  const {results,status,loadMore}=usePaginatedQuery(api.operations.listImportedProductionPage,args,{initialNumItems:500});
  const rows=(results??[]) as unknown as Row[];
  const opts=useMemo(()=>({
