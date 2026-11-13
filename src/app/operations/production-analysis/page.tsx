@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import BackToDashboard from "@/components/BackToDashboard";
 
 type Row = {
@@ -158,7 +159,7 @@ export default function ProductionAnalysisPage() {
   const toAt = to ? new Date(to + "T23:59:59.999").getTime() : undefined;
   const stations = useQuery(api.stations.listActiveStations, {});
   const args = invalid ? "skip" : {
-    stationId: stationId ? stationId as any : undefined,
+    stationId: stationId ? stationId as Id<"stations"> : undefined,
     fromAt,
     toAt,
   };
