@@ -361,6 +361,8 @@ def send_preview_first_batch(source_path,profile,limit=100):
 
 def run_once(validate_only=False,limit=None,validate_all=False,validate_server=False,send_preview=False):
     setup_logging(); source=load_config(); profile=load_profile()
+    if send_preview:
+        return send_preview_first_batch(source,profile,limit=100)
     if validate_server:
         return validate_server_rows(source,profile)
     if validate_all:
@@ -395,16 +397,21 @@ if __name__=="__main__":
                         help="Required with --validate-only; number of source rows to inspect (1..1000).")
     parser.add_argument("--validate-all",action="store_true",
                         help="Validate every source row in bounded memory without queue writes or network sends.")
-    parser.add_argument("--send-preview-first-100",action="store_true",\n                        help="Send exactly one 100-record batch to the hard-locked Preview endpoint; bypasses the SQLite queue.")\n    parser.add_argument("--validate-server-contract",action="store_true",
+    parser.add_argument("--send-preview-first-100",action="store_true",
+                        help="Send exactly one 100-record batch to the hard-locked Preview endpoint; bypasses the SQLite queue.")
+    parser.add_argument("--validate-server-contract",action="store_true",
                         help="Preflight every row against server validators and estimate safe batch sizes; no queue or network.")
     args=parser.parse_args()
-    if args.send_preview_first_100 and (args.validate_server_contract or args.validate_only or args.validate_all or args.limit is not None):\n        parser.error("--send-preview-first-100 cannot be combined with validation flags or --limit.")\n    if args.validate_server_contract and (args.validate_only or args.validate_all or args.limit is not None):
+    if args.send_preview_first_100 and (args.validate_server_contract or args.validate_only or args.validate_all or args.limit is not None):
+        parser.error("--send-preview-first-100 cannot be combined with validation flags or --limit.")
+    if args.validate_server_contract and (args.validate_only or args.validate_all or args.limit is not None):
         parser.error("--validate-server-contract cannot be combined with other validation flags.")
     if args.validate_all and (args.validate_only or args.limit is not None):
         parser.error("--validate-all cannot be combined with --validate-only or --limit.")
     try:
         print(json.dumps(run_once(validate_only=args.validate_only,limit=args.limit,
                                   validate_all=args.validate_all,
-                                  validate_server=args.validate_server_contract),ensure_ascii=False))
+                                  validate_server=args.validate_server_contract,
+                                  send_preview=args.send_preview_first_100),ensure_ascii=False))
     except Exception:
         setup_logging(); logging.exception("Sync cycle failed"); raise
