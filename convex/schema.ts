@@ -531,25 +531,6 @@ export default defineSchema({
     .index("by_batchId", ["batchId"])
     .index("by_station_processedAt", ["stationId", "processedAt"]),
 
-  stationReconciliationReports: defineTable({
-    stationId: v.id("stations"),
-    machineId: v.string(),
-    comparedAt: v.number(),
-    sourceRecords: v.number(),
-    serverRecords: v.number(),
-    matched: v.number(),
-    fileOnly: v.number(),
-    demixOnly: v.number(),
-    different: v.number(),
-    duplicates: v.number(),
-    details: v.array(v.object({
-      status: v.string(),
-      sourceRecordId: v.string(),
-      sourceHash: v.optional(v.string()),
-      serverHash: v.optional(v.string()),
-    })),
-  }).index("by_station_comparedAt", ["stationId", "comparedAt"]),
-
   stationSyncState: defineTable({
     stationId: v.id("stations"),
     status: v.union(v.literal("online"), v.literal("error")),
