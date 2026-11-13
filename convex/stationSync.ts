@@ -157,6 +157,31 @@ export const ingestBatch = internalMutation({
   },
 });
 
+export const checkSourceRecords = internalQuery({
+  args: {
+    stationCode: v.string(),
+    machineId: v.string(),
+    records: v.array(v.object({ sourceRecordId: v.string(), sourceHash: v.string() })),
+  },
+  handler: async (ctx, args) => {
+    if (args.records.length < 1 || args.records.length > 100) throw new Error("INVALID_CHECK_SIZE");
+    const station = await ctx.db.query("stations").withIndex("by_code", q => q.eq("code", args.stationCode)).unique();
+    if (!station || station.status !== "active") throw new Error("STATION_NOT_FOUND_OR_INACTIVE");
+    const matches = [];
+    for (const record of args.records) {
+      const current = await ctx.db.query("stationProductionImports")
+        .withIndex("by_station_machine_source", q => q.eq("stationId", station._id).eq("machineId", args.machineId).eq("sourceRecordId", record.sourceRecordId))
+        .unique();
+      const legacy = current ? null : await ctx.db.query("stationProductionImports")
+        .withIndex("by_station_source", q => q.eq("stationId", station._id).eq("sourceRecordId", record.sourceRecordId))
+        .unique();
+      const found = current ?? (legacy?.machineId === undefined ? legacy : null);
+      if (found) matches.push({ sourceRecordId: found.sourceRecordId, sourceHash: found.sourceHash });
+    }
+    return { success: true, matches };
+  },
+});
+
 export const recordFailure = internalMutation({
   args: { stationCode: v.string(), message: v.string() },
   handler: async (ctx, args) => {
