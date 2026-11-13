@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DeMix station connector. Access source is never modified."""
 from __future__ import annotations
-import argparse, hashlib, json, logging, math, platform, shutil, sqlite3, tempfile
+import argparse, csv, hashlib, json, logging, math, platform, shutil, sqlite3, tempfile
 from datetime import date, datetime, time
 from pathlib import Path
 from urllib.request import Request, urlopen
