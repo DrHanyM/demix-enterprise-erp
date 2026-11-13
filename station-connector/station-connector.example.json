@@ -12,7 +12,13 @@
     "grade": "strength",
     "operator": "operator",
     "customer": "CUST_NM",
-    "project": "PROJ_NM"
+    "project": "PROJ_NM",
+    "truck": "Truck_No",
+    "operationState": "OperationState",
+    "gl": "GL",
+    "fl": "FL",
+    "wj": "WJ",
+    "shui": "Shui"
   },
   "odbcDriver": "Microsoft Access Driver (*.mdb, *.accdb)",
   "requestTimeoutSeconds": 30,
