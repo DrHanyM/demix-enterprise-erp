@@ -351,7 +351,8 @@ export default function ProductionAnalysisPage() {
                       <div key={item.key} className="border-t pt-2 text-xs">
                         <p className="font-semibold">{item.name}</p>
                         <p className="mt-1 text-slate-500">متوقع: {item.expected.toLocaleString("en-US")} | فعلي: {item.actual.toLocaleString("en-US")}</p>
-                        <p className="text-slate-400">فرق: {(item.actual - item.expected).toLocaleString("en-US")}</p>
+                        <p className="text-slate-500">لكل م³ — متوقع: {(total > 0 ? item.expected / total : 0).toLocaleString("en-US", { maximumFractionDigits: 3 })} | فعلي: {(total > 0 ? item.actual / total : 0).toLocaleString("en-US", { maximumFractionDigits: 3 })}</p>
+                        <p className="text-slate-400">فرق: {(item.actual - item.expected).toLocaleString("en-US")} | الفرق لكل م³: {(total > 0 ? (item.actual - item.expected) / total : 0).toLocaleString("en-US", { maximumFractionDigits: 3 })}</p>
                       </div>
                     ))}
                   </div>
