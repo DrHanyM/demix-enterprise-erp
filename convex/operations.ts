@@ -301,7 +301,7 @@ export const listImportedProductionPage = query({
     if (args.jobNo) base = base.filter((q: any) => q.eq(q.field("jobNo"), args.jobNo));
     if (args.concreteGrade) base = base.filter((q: any) => q.eq(q.field("concreteGrade"), args.concreteGrade));
     if (args.truckNo) base = base.filter((q: any) => q.eq(q.field("truckNo"), args.truckNo));
-    if (args.driverName) base = base.filter((q: any) => q.eq(q.field("driverName"), args.driverName));
+    if (args.driverName) base = base.filter((q: any) => q.or(q.eq(q.field("driverName"), args.driverName), q.eq(q.field("operatorName"), args.driverName)));
     if (args.operationState) base = base.filter((q: any) => q.eq(q.field("operationState"), args.operationState));
     const page = await base.order("desc").paginate(args.paginationOpts);
     const stations = await ctx.db.query("stations").collect();
