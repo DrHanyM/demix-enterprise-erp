@@ -24,6 +24,7 @@ import type * as hrSetup from "../hrSetup.js";
 import type * as invitations from "../invitations.js";
 import type * as leaveManagement from "../leaveManagement.js";
 import type * as productionRecords from "../productionRecords.js";
+import type * as operations from "../operations.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as securityChecks from "../securityChecks.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   invitations: typeof invitations;
   leaveManagement: typeof leaveManagement;
   productionRecords: typeof productionRecords;
+  operations: typeof operations;
   "lib/audit": typeof lib_audit;
   "lib/auth": typeof lib_auth;
   securityChecks: typeof securityChecks;
