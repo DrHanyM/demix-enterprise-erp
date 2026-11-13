@@ -26,6 +26,7 @@ const menuGroups: {
     items: [
       { icon: "▦", label: "التشغيل والإنتاج", href: "/production" },
       { icon: "▥", label: "سجل الإنتاج المستورد", href: "/operations/production" },
+      { icon: "▧", label: "تحليل إنتاج المحطات", href: "/operations/production-analysis" },
       { icon: "⚙", label: "المعدات والصيانة", href: "/operations/equipment" },
       { icon: "▤", label: "المخازن والمخزون", href: "/operations/inventory" },
       { icon: "▦", label: "مركز العمليات", href: "/operations" },
