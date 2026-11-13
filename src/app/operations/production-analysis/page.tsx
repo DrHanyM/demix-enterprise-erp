@@ -270,7 +270,7 @@ export default function ProductionAnalysisPage() {
               {options.projects.map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
-          <label className="text-xs text-slate-600">الخلطة / درجة الإجهاد
+          <label className="text-xs text-slate-600">اسم الخلطة المستخدمة / Strength
             <select className="mt-1 block w-full rounded-lg border p-2 text-sm" value={mix} onChange={(e) => setMix(e.target.value)}>
               <option value="">كل الخلطات</option>
               {options.mixes.map((value) => <option key={value}>{value}</option>)}
@@ -299,6 +299,24 @@ export default function ProductionAnalysisPage() {
               <option value="">كل الحالات</option>
               {options.states.map((value) => <option key={value}>{value}</option>)}
             </select>
+          </label>
+          <SourceSelect label="المضخة المستخدمة / Prop_No" value={pump} onChange={setPump} values={options.pumps} />
+          <SourceSelect label="الموقع / Location" value={location} onChange={setLocation} values={options.locations} />
+          <SourceSelect label="رقم الموقع / Site_No" value={siteNo} onChange={setSiteNo} values={options.siteNos} />
+          <SourceSelect label="العقد / Contr_No" value={contract} onChange={setContract} values={options.contracts} />
+          <SourceSelect label="المتطلبات الفنية / Tech_Req" value={techReq} onChange={setTechReq} values={options.techReqs} />
+          <SourceSelect label="طريقة التسليم / Delivery_Mode" value={deliveryMode} onChange={setDeliveryMode} values={options.deliveryModes} />
+          <SourceSelect label="خط الإنتاج / ProduceLine" value={productionLine} onChange={setProductionLine} values={options.productionLines} />
+          <SourceSelect label="المشغل / Operator" value={operator} onChange={setOperator} values={options.operators} />
+          <SourceSelect label="سعة الخلاطة / Truck_vol" value={truckVolume} onChange={setTruckVolume} values={options.truckVolumes} />
+          <SourceSelect label="الهبوط / TaLuoDu" value={slump} onChange={setSlump} values={options.slumps} />
+          <SourceSelect label="KangShenLevel (المصدر)" value={kangShen} onChange={setKangShen} values={options.kangShenLevels} />
+          <SourceSelect label="حالة القراءة / ReadState" value={readState} onChange={setReadState} values={options.readStates} />
+          <SourceSelect label="كود التوزيع / AttemperCode" value={attenderCode} onChange={setAttenderCode} values={options.attenderCodes} />
+          <SourceSelect label="وحدة الإنشاء / Const_Unit" value={constUnit} onChange={setConstUnit} values={options.constUnits} />
+          <SourceSelect label="رمز المصدر / SaJiangSymbol" value={saJiangSymbol} onChange={setSaJiangSymbol} values={options.saJiangSymbols} />
+          <label className="text-xs text-slate-600">بحث في الملاحظات
+            <input className="mt-1 block w-full rounded-lg border p-2 text-sm" placeholder="Remark / RecordRemark / SynchRemark" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </label>
           <label className="text-xs text-slate-600 xl:col-span-2">بحث عام
             <input className="mt-1 block w-full rounded-lg border p-2 text-sm" placeholder="ID أو العميل أو المشروع أو الخلطة..." value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -381,7 +399,7 @@ export default function ProductionAnalysisPage() {
                   <td className="p-3">{row.concreteGrade ?? "—"}</td>
                   <td className="p-3 font-bold">{row.quantity ?? "—"}</td>
                   <td className="p-3">{row.truckNo ?? show(raw(row, "Truck_No"))}</td>
-                  <td className="p-3">{row.driverName ?? row.operatorName ?? show(raw(row, "Driver"))}</td>
+                  <td className="p-3">{row.driverName ?? show(raw(row, "Driver"))}</td>
                   <td className="p-3">{row.operatorName ?? "—"}</td>
                   <td className="p-3">{row.operationState ?? show(raw(row, "OperationState"))}</td>
                   <td className="p-3">
