@@ -16,6 +16,7 @@ type SyncRow = {
 
 const packageFiles = [
   ["connector.py", "موصل قراءة قاعدة Access والإرسال"],
+  ["compare_db.py", "مقارنة DB.MDB محليًا دون رفع الملف"],
   ["requirements.txt", "متطلبات Python"],
   ["PUCH.PS1", "ملف تشغيل المزامنة"],
   ["INSTALL.ps1", "تثبيت مهمة Windows المجدولة"],
