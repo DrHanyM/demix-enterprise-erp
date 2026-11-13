@@ -53,7 +53,7 @@ export default function ProductionAnalysisPage(){
   projects:[...new Set(rows.map(r=>r.projectName).filter(Boolean) as string[])].sort(),
   mixes:[...new Set(rows.map(r=>r.concreteGrade).filter(Boolean) as string[])].sort(),
   mixers:[...new Set(rows.map(r=>show(r.truckNo??raw(r,"Truck_No"))).filter(x=>x!=="—"))].sort(),
-  drivers:[...new Set(rows.map(r=>show(r.driverName??raw(r,"Driver"))).filter(x=>x!=="—"))].sort(),
+  drivers:[...new Set(rows.map(r=>show(r.driverName??r.operatorName??raw(r,"Driver"))).filter(x=>x!=="—"))].sort(),
   jobs:[...new Set(rows.map(r=>show(r.jobNo??raw(r,"Job_No"))).filter(x=>x!=="—"))].sort(),
   states:[...new Set(rows.map(r=>show(r.operationState??raw(r,"OperationState"))).filter(x=>x!=="—"))].sort(),
  }),[rows]);
@@ -61,7 +61,7 @@ export default function ProductionAnalysisPage(){
   const d=new Date(r.productionAt),t=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
   return (!fromTime||t>=fromTime)&&(!toTime||t<=toTime)&&(!customer||norm(r.customerName)===norm(customer))&&(!project||norm(r.projectName)===norm(project))
    &&(!mix||norm(r.concreteGrade)===norm(mix))&&(!mixer||norm(r.truckNo??raw(r,"Truck_No"))===norm(mixer))
-   &&(!driver||norm(r.driverName??raw(r,"Driver"))===norm(driver))&&(!job||norm(r.jobNo??raw(r,"Job_No"))===norm(job))
+   &&(!driver||norm(r.driverName??r.operatorName??raw(r,"Driver"))===norm(driver))&&(!job||norm(r.jobNo??raw(r,"Job_No"))===norm(job))
    &&(!state||norm(r.operationState??raw(r,"OperationState"))===norm(state))
    &&(!search||[r.sourceRecordId,r.jobNo,r.customerName,r.projectName,r.concreteGrade,r.truckNo,r.driverName,r.operatorName].some(v=>norm(v).includes(norm(search))));
  }),[rows,fromTime,toTime,customer,project,mix,mixer,driver,job,state,search]);
