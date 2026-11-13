@@ -490,7 +490,8 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_station_time", ["stationId", "productionAt"])
-    .index("by_station_job", ["stationId", "jobNo"]),
+    .index("by_station_job", ["stationId", "jobNo"])
+    .index("by_productionAt", ["productionAt"]),
 
 
   // Immutable source mirror for station production imports; kept separate from manually entered ERP records.
@@ -511,7 +512,8 @@ export default defineSchema({
   })
     .index("by_station_source", ["stationId", "sourceRecordId"])
     .index("by_station_machine_source", ["stationId", "machineId", "sourceRecordId"])
-    .index("by_station_time", ["stationId", "productionAt"]),
+    .index("by_station_time", ["stationId", "productionAt"])
+    .index("by_productionAt", ["productionAt"]),
 
   stationSyncBatches: defineTable({
     batchId: v.string(),
@@ -547,5 +549,59 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_station", ["stationId"])
-    .index("by_tokenHash", ["tokenHash"])
+    .index("by_tokenHash", ["tokenHash"]),
+
+  // Operational equipment register. Maintenance is tracked separately from production.
+  equipment: defineTable({
+    assetCode: v.string(), name: v.string(), category: v.string(),
+    stationId: v.optional(v.id("stations")), manufacturer: v.optional(v.string()),
+    model: v.optional(v.string()), serialNumber: v.optional(v.string()),
+    purchaseDate: v.optional(v.string()), meterUnit: v.optional(v.string()),
+    currentMeter: v.optional(v.number()),
+    status: v.union(v.literal("active"), v.literal("maintenance"), v.literal("inactive"), v.literal("retired")),
+    notes: v.optional(v.string()), createdAt: v.number(), updatedAt: v.number(), createdBy: v.id("users"),
+  }).index("by_assetCode", ["assetCode"]).index("by_station", ["stationId"]).index("by_status", ["status"]),
+
+  maintenanceOrders: defineTable({
+    equipmentId: v.id("equipment"), stationId: v.optional(v.id("stations")), orderNo: v.string(),
+    maintenanceType: v.union(v.literal("preventive"), v.literal("corrective"), v.literal("inspection")),
+    priority: v.union(v.literal("low"), v.literal("normal"), v.literal("high"), v.literal("critical")),
+    description: v.string(),
+    status: v.union(v.literal("open"), v.literal("in_progress"), v.literal("completed"), v.literal("cancelled")),
+    reportedAt: v.number(), scheduledAt: v.optional(v.number()), completedAt: v.optional(v.number()),
+    downtimeMinutes: v.optional(v.number()), cost: v.optional(v.number()), meterReading: v.optional(v.number()),
+    resolution: v.optional(v.string()), createdBy: v.id("users"), updatedBy: v.id("users"),
+    createdAt: v.number(), updatedAt: v.number(),
+  }).index("by_equipment", ["equipmentId"]).index("by_equipment_status", ["equipmentId", "status"]).index("by_status", ["status"]).index("by_reportedAt", ["reportedAt"]).index("by_completedAt", ["completedAt"]).index("by_orderNo", ["orderNo"]),
+
+  warehouses: defineTable({
+    code: v.string(), name: v.string(), stationId: v.optional(v.id("stations")), location: v.optional(v.string()),
+    status: v.union(v.literal("active"), v.literal("inactive")), createdAt: v.number(), updatedAt: v.number(), createdBy: v.id("users"),
+  }).index("by_code", ["code"]).index("by_station", ["stationId"]).index("by_status", ["status"]),
+
+  inventoryItems: defineTable({
+    itemCode: v.string(), name: v.string(), category: v.string(), unit: v.string(), minimumQuantity: v.number(),
+    status: v.union(v.literal("active"), v.literal("inactive")), notes: v.optional(v.string()),
+    createdAt: v.number(), updatedAt: v.number(), createdBy: v.id("users"),
+  }).index("by_itemCode", ["itemCode"]).index("by_category", ["category"]).index("by_status", ["status"]),
+
+  inventoryBalances: defineTable({
+    warehouseId: v.id("warehouses"), itemId: v.id("inventoryItems"), quantity: v.number(), updatedAt: v.number(),
+  }).index("by_warehouse_item", ["warehouseId", "itemId"]).index("by_item", ["itemId"]).index("by_warehouse", ["warehouseId"]),
+
+  stockMovements: defineTable({
+    movementNo: v.string(), movementType: v.union(v.literal("receipt"), v.literal("issue"), v.literal("transfer"), v.literal("adjustment")),
+    itemId: v.id("inventoryItems"), quantity: v.number(), fromWarehouseId: v.optional(v.id("warehouses")),
+    toWarehouseId: v.optional(v.id("warehouses")), movementAt: v.number(), reference: v.optional(v.string()),
+    notes: v.optional(v.string()), status: v.union(v.literal("posted"), v.literal("reversed")),
+    createdBy: v.id("users"), createdAt: v.number(),
+  }).index("by_movementNo", ["movementNo"]).index("by_item_time", ["itemId", "movementAt"])
+    .index("by_fromWarehouse", ["fromWarehouseId"]).index("by_toWarehouse", ["toWarehouseId"]),
+
+  // Explicit mappings only: raw station fields are never assigned a material meaning automatically.
+  materialFieldMappings: defineTable({
+    stationId: v.optional(v.id("stations")), sourceField: v.string(), itemId: v.id("inventoryItems"),
+    unit: v.string(), active: v.boolean(), confirmedBy: v.id("users"), confirmedAt: v.number(), notes: v.optional(v.string()),
+  }).index("by_station_field", ["stationId", "sourceField"]).index("by_item", ["itemId"]),
+
 });
