@@ -21,9 +21,7 @@ concurrency:
 
 jobs:
   deploy-preview:
-    if: >-
-      github.ref == 'refs/heads/codex/station-transfer-preserve-source' &&
-      inputs.confirm_preview == 'DEPLOY PREVIEW'
+    if: inputs.confirm_preview == 'DEPLOY PREVIEW'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
