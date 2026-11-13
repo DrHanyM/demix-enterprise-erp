@@ -9,6 +9,10 @@ case "${VERCEL_GIT_COMMIT_REF:-}" in
   feature/operations-modules)
     npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL
     ;;
+  feature/integrated-operations-modules)
+    npx convex codegen
+    npm run build
+    ;;
   *)
     npm run build
     ;;
