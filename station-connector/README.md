@@ -35,6 +35,14 @@ The interval can be changed later in Task Scheduler. It controls station reading
 - The command is restricted to the approved Preview host, uses a 180 KB payload ceiling, verifies the server acknowledgement, and does not write to the SQLite outbox.
 - For the next source window (rows 101-200), run `python .\\connector.py --send-preview-next-100`. Do not use the unrestricted scheduled-sync command when the intention is to send only one selected 100-row window.
 
+## Local DB.MDB comparison against Preview
+
+- Keep the existing station-profile.json and token from the 51-record test.
+- Run `python .\\connector.py --compare-preview` from the connector folder and choose the local DB.MDB in the file picker.
+- The tool opens a temporary copy in Access Read Only mode, fetches the station's paginated DeMix raw-record manifest through the station token, compares every original source column locally, and writes CSV/JSON reports beside the selected DB.MDB.
+- Only the read-only comparison request/response travels over HTTPS. The DB.MDB file and its raw rows are never uploaded; the original database is never modified.
+- This command does not send or update production rows. Use the explicit `--send-preview-first-100` / `--send-preview-next-100` commands for controlled upload batches.
+
 ## Local DB.MDB comparison (no database upload)
 
 1. In DeMix, open Operations > Production Analysis, clear the date filters, select the required station, and load all result pages until the screen says all results are loaded.
