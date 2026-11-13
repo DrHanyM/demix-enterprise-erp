@@ -239,23 +239,31 @@ export const listOperationsOverview = query({
     await requireCentralPermission(ctx, "operations.reports.view");
     const fromAt = args.fromAt ?? 0, toAt = args.toAt ?? Date.now();
     if (fromAt > toAt) throw new Error("INVALID_REPORT_RANGE");
-    const [imports, manual, equipment, orders, items, balances, stations] = await Promise.all([
-      ctx.db.query("stationProductionImports").collect(), ctx.db.query("productionRecords").collect(),
-      ctx.db.query("equipment").collect(), ctx.db.query("maintenanceOrders").collect(),
-      ctx.db.query("inventoryItems").collect(), ctx.db.query("inventoryBalances").collect(), ctx.db.query("stations").collect(),
+    const [imports, manual, activeEquipment, maintenanceEquipment, inactiveEquipment, retiredEquipment,
+      openOrders, inProgressOrders, completedOrders, items, balances, stations] = await Promise.all([
+      ctx.db.query("stationProductionImports").withIndex("by_productionAt", q => q.gte("productionAt", fromAt).lte("productionAt", toAt)).collect(),
+      ctx.db.query("productionRecords").withIndex("by_productionAt", q => q.gte("productionAt", fromAt).lte("productionAt", toAt)).collect(),
+      ctx.db.query("equipment").withIndex("by_status", q => q.eq("status", "active")).collect(),
+      ctx.db.query("equipment").withIndex("by_status", q => q.eq("status", "maintenance")).collect(),
+      ctx.db.query("equipment").withIndex("by_status", q => q.eq("status", "inactive")).collect(),
+      ctx.db.query("equipment").withIndex("by_status", q => q.eq("status", "retired")).collect(),
+      ctx.db.query("maintenanceOrders").withIndex("by_status", q => q.eq("status", "open")).collect(),
+      ctx.db.query("maintenanceOrders").withIndex("by_status", q => q.eq("status", "in_progress")).collect(),
+      ctx.db.query("maintenanceOrders").withIndex("by_completedAt", q => q.gte("completedAt", fromAt).lte("completedAt", toAt)).collect(),
+      ctx.db.query("inventoryItems").collect(),
+      ctx.db.query("inventoryBalances").collect(),
+      ctx.db.query("stations").withIndex("by_status", q => q.eq("status", "active")).collect(),
     ]);
-    const imported = imports.filter(x => x.productionAt >= fromAt && x.productionAt <= toAt);
-    const entered = manual.filter(x => x.productionAt >= fromAt && x.productionAt <= toAt);
     return {
       period: { fromAt, toAt },
       production: {
-        importedRecords: imported.length, importedQuantity: imported.reduce((s,x)=>s+(x.quantity ?? 0),0),
-        manualRecords: entered.length, manualQuantity: entered.reduce((s,x)=>s+x.quantity,0),
+        importedRecords: imports.length, importedQuantity: imports.reduce((s,x)=>s+(x.quantity ?? 0),0),
+        manualRecords: manual.length, manualQuantity: manual.reduce((s,x)=>s+x.quantity,0),
       },
-      equipment: { total: equipment.length, active: equipment.filter(x=>x.status==="active").length, inMaintenance: equipment.filter(x=>x.status==="maintenance").length, inactive: equipment.filter(x=>x.status==="inactive").length },
-      maintenance: { open: orders.filter(x=>x.status==="open"||x.status==="in_progress").length, completedInPeriod: orders.filter(x=>x.status==="completed"&&x.completedAt!==undefined&&x.completedAt>=fromAt&&x.completedAt<=toAt).length, downtimeMinutes: orders.filter(x=>x.completedAt!==undefined&&x.completedAt>=fromAt&&x.completedAt<=toAt).reduce((s,x)=>s+(x.downtimeMinutes??0),0) },
+      equipment: { total: activeEquipment.length + maintenanceEquipment.length + inactiveEquipment.length + retiredEquipment.length, active: activeEquipment.length, inMaintenance: maintenanceEquipment.length, inactive: inactiveEquipment.length },
+      maintenance: { open: openOrders.length + inProgressOrders.length, completedInPeriod: completedOrders.length, downtimeMinutes: completedOrders.reduce((s,x)=>s+(x.downtimeMinutes??0),0) },
       inventory: { activeItems: items.filter(x=>x.status==="active").length, balanceLines: balances.length, totalQuantity: balances.reduce((s,x)=>s+x.quantity,0), lowStockLines: balances.filter(b=>{const item=items.find(i=>i._id===b.itemId);return !!item&&b.quantity<item.minimumQuantity;}).length },
-      stations: stations.filter(x=>x.status==="active").length,
+      stations: stations.length,
     };
   },
 });
