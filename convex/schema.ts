@@ -547,8 +547,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_station", ["stationId"])
-    .index("by_tokenHash", ["tokenHash"])
-
+    .index("by_tokenHash", ["tokenHash"]),
 
   // Operational equipment register. Maintenance is tracked separately from production.
   equipment: defineTable({
