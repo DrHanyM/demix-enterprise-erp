@@ -26,6 +26,13 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(mapped["rawSourceData"]["FL"],80)
         self.assertEqual(mapped["rawSourceData"]["WJ"],160)
         self.assertEqual(mapped["rawSourceData"]["Shui"],32)
+        row["NAM_WJA1"]="Admix A"; row["WJA1"]=1.25
+        row["NAM_WJA2"]="Admix B"; row["WJA2"]=0.75
+        mapped=connector.map_row(row,COLUMNS)
+        self.assertEqual(mapped["rawSourceData"]["NAM_WJA1"],"Admix A")
+        self.assertEqual(mapped["rawSourceData"]["WJA1"],1.25)
+        self.assertEqual(mapped["rawSourceData"]["NAM_WJA2"],"Admix B")
+        self.assertEqual(mapped["rawSourceData"]["WJA2"],0.75)
         self.assertEqual(mapped["truckNo"],"TR-07")
         self.assertEqual(mapped["operationState"],"Completed")
         row["GL"]=246.5
