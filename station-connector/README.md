@@ -26,16 +26,6 @@ The interval can be changed later in Task Scheduler. It controls station reading
 - A record is marked sent only after a successful server acknowledgement. Failed sends remain pending and retry.
 - Imported records remain separate from manually entered production records. No inventory deduction or automatic posting occurs.
 
-## One-time Preview backfill and DB comparison
-
-Run these commands from the connector folder on the Windows PC that can read the station database. They use the existing CONFIG and station-profile.json files; they do not rotate credentials, edit the Access file, or write to the SQLite queue.
-
-- `python .\\connector.py --send-preview-next-100`: checks source IDs and SHA-256 hashes against the approved Preview, then sends at most 100 records that are missing or changed. It resumes from the first unsynchronized rows, so after the earlier 51-record import it will pick up the remaining rows from that first scan before moving further through the file. Payload batches are capped at 180,000 bytes. The command is restricted to the known Preview Convex host and requires a full server acknowledgement.
-- `python .\\connector.py --compare-preview`: reads the Access source read-only, fetches the Preview manifest, and classifies records as matched, file-only, DeMix-only, changed, or duplicated. Only the reconciliation counts and up to 500 mismatch identifiers/hashes are sent to Preview; the DB.MDB file and its raw production rows are not uploaded.
-- Both commands report `queueWritten=false`. They do not touch the normal seven-minute SQLite outbox or scheduled task.
-
-After each send, run the comparison command and check that file-only and changed counts have fallen as expected. Do not infer completion from HTTP success alone; reconcile the source and server counts.
-
 ## Continue the previously tested 51-of-100 Preview import
 
 - Keep the existing station-profile.json and its token. Do not issue a replacement token for this continuation.
