@@ -489,7 +489,10 @@ if __name__=="__main__":
                         help="Required with --validate-only; number of source rows to inspect (1..1000).")
     parser.add_argument("--validate-all",action="store_true",
                         help="Validate every source row in bounded memory without queue writes or network sends.")
-    parser.add_argument("--compare-preview-pick",action="store_true",\n                        help="Open a file picker and compare a local Access DB with Preview without uploading it.")\n    parser.add_argument("--compare-preview-db",help="Explicit local .MDB/.ACCDB path for read-only Preview comparison.")\n    parser.add_argument("--send-preview-first-100",action="store_true",
+    parser.add_argument("--compare-preview-pick",action="store_true",
+                        help="Open a file picker and compare a local Access DB with Preview without uploading it.")
+    parser.add_argument("--compare-preview-db",help="Explicit local .MDB/.ACCDB path for read-only Preview comparison.")
+    parser.add_argument("--send-preview-first-100",action="store_true",
                         help="Send exactly one 100-record batch to the hard-locked Preview endpoint; bypasses the SQLite queue.")
     parser.add_argument("--validate-server-contract",action="store_true",
                         help="Preflight every row against server validators and estimate safe batch sizes; no queue or network.")
