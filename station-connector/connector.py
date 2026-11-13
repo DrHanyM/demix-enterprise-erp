@@ -203,7 +203,7 @@ def send_preview_window(start,end):
     setup_logging()
     profile=load_profile()
     host=(urlsplit(profile["endpoint"]).hostname or "").lower()
-    if host != "savory-hyena-978.convex.site":
+    if host != "savory-hyena-978.ap-southeast-2.convex.site":
         raise RuntimeError("Safety stop: this command is restricted to the approved Convex Preview deployment.")
     source=load_config()
     rows,digest=read_rows(source,profile)
