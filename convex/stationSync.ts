@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
@@ -201,6 +202,33 @@ export const listProductionImports = query({
       items: rows.slice(0, limit),
       hasMore: rows.length > limit,
       limit,
+    };
+  },
+});
+
+
+export const listImportedRecordsForConnector = internalQuery({
+  args: {
+    stationId: v.id("stations"),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db.query("stationProductionImports")
+      .withIndex("by_station_time", q => q.eq("stationId", args.stationId))
+      .order("asc")
+      .paginate(args.paginationOpts);
+    return {
+      ...result,
+      page: result.page.map(record => ({
+        sourceRecordId: record.sourceRecordId,
+        sourceHash: record.sourceHash,
+        productionAt: record.productionAt,
+        customerName: record.customerName,
+        projectName: record.projectName,
+        jobNo: record.jobNo,
+        quantity: record.quantity,
+        machineId: record.machineId,
+      })),
     };
   },
 });
