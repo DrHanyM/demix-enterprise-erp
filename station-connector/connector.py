@@ -197,7 +197,7 @@ def check_server_records(profile, records):
         result=json.loads(response.read().decode())
         if response.status!=200 or not result.get("success") or not isinstance(result.get("matches"),list):
             raise RuntimeError("Preview could not confirm existing source records")
-        return {str(x["sourceRecordId"]):str(x["sourceHash"]) for x in result["matches"]}
+        return {str(x["sourceRecordId"]):{"sourceHash":str(x["sourceHash"]),"hasRawSourceData":bool(x.get("hasRawSourceData",False))} for x in result["matches"]}
 
 def send_preview_window(start,end):
     setup_logging()
@@ -221,7 +221,7 @@ def send_preview_window(start,end):
         unique[key]=item
     items=list(unique.values())
     check=check_server_records(profile,[{"sourceRecordId":x["sourceRecordId"],"sourceHash":x["sourceHash"]} for x in items]) if items else {}
-    candidates=[item for item in items if item["sourceRecordId"] not in conflicts and check.get(item["sourceRecordId"])!=item["sourceHash"]]
+    candidates=[item for item in items if item["sourceRecordId"] not in conflicts and (item["sourceRecordId"] not in check or check[item["sourceRecordId"]]["sourceHash"]!=item["sourceHash"] or not check[item["sourceRecordId"]]["hasRawSourceData"])]
     if not candidates:
         result={"read":len(rows),"windowStart":start+1 if window else None,"windowEnd":start+len(window) if window else None,
             "scanned":len(window),"pending":0,"sent":0,"inserted":0,"updated":0,"alreadyMatched":len(items)-len(conflicts),
@@ -272,8 +272,8 @@ def run_once():
 
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
-    parser.add_argument("--send-preview-first-100",action="store_true",help="Resume source rows 1-100; Preview IDs already present with the same hash are skipped.")
-    parser.add_argument("--send-preview-next-100",action="store_true",help="Send source rows 101-200; records already present with the same hash are skipped.")
+    parser.add_argument("--send-preview-first-100",action="store_true",help="Send source rows 1-100; records are skipped only when hash matches and raw source data exists.")
+    parser.add_argument("--send-preview-next-100",action="store_true",help="Send source rows 101-200; records are skipped only when hash matches and raw source data exists.")
     args=parser.parse_args()
     try:
         if args.send_preview_first_100: send_preview_first_100()
