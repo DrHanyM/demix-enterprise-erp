@@ -306,7 +306,7 @@ export const listImportedProductionPage = query({
     const page = await base.order("desc").paginate(args.paginationOpts);
     const stations = await ctx.db.query("stations").collect();
     const names = new Map(stations.map(s => [s._id, { name: s.name, code: s.code }]));
-    return { ...page, page: page.page.map(r => ({ ...r, station: names.get(r.stationId) ?? null })) };
+    return { ...page, page: page.page.map((r: any) => ({ ...r, station: names.get(r.stationId) ?? null })) };
   },
 });
 
