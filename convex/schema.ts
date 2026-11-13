@@ -507,6 +507,7 @@ export default defineSchema({
     concreteGrade: v.optional(v.string()),
     quantity: v.optional(v.number()),
     operatorName: v.optional(v.string()),
+    driverName: v.optional(v.string()),
     truckNo: v.optional(v.string()),
     operationState: v.optional(v.string()),
     importedAt: v.number(),
