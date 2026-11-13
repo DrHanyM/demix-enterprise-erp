@@ -166,23 +166,11 @@ export default function ProductionAnalysisPage() {
   }, [filtered]);
 
   const exhausted = status === "Exhausted";
-  const exportComplete = exhausted && !from && !to && !fromTime && !toTime && !customer && !project && !mix && !mixer && !driver && !job && !state && !search;
   const reset = () => {
     setFrom(""); setTo(""); setFromTime(""); setToTime(""); setStationId("");
     setCustomer(""); setProject(""); setMix(""); setMixer(""); setDriver(""); setJob(""); setState(""); setSearch("");
   };
-  const exportJson = () => {
-    const payload = {
-      source: "DeMix Convex station imports",
-      exportedAt: new Date().toISOString(),
-      records: rows.map((row) => ({
-        sourceRecordId: row.sourceRecordId,
-        stationCode: row.station?.code ?? "",
-        rawSourceData: row.rawSourceData ?? {},
-      })),
-    };
-    saveFile("demix-production-comparison.json", JSON.stringify(payload, null, 2), "application/json;charset=utf-8");
-  };
+
   const exportCsv = () => {
     const columns = ["sourceRecordId", "productionAt", "station", "jobNo", "customerName", "projectName", "concreteGrade", "quantity", "truckNo", "driverName", "operatorName", "operationState"];
     const escapeCsv = (value: unknown) => '"' + String(value ?? "").replace(/"/g, '""') + '"';
@@ -359,9 +347,8 @@ export default function ProductionAnalysisPage() {
             <h2 className="font-bold">المقارنة اليدوية مع DB.MDB — محليًا فقط</h2>
             <span className="text-xs">لا يتم رفع ملف Access</span>
           </div>
-          <p>للمقارنة الكاملة: امسح التاريخ وكل فلاتر البحث (يمكنك إبقاء المحطة محددة)، ثم حمّل جميع الصفحات ونزّل JSON. شغّل أداة المقارنة على جهازك واختر DB.MDB وملف JSON يدويًا؛ تُقرأ القاعدة بنسخة مؤقتة Read Only ويُحفظ تقرير CSV وJSON محليًا، دون إرسال ملف Access أو بياناته الخام إلى Vercel أو Convex.</p>
-          <button onClick={exportJson} disabled={!exportComplete || !rows.length} className="mt-3 rounded-lg border border-sky-700 px-4 py-2 text-xs font-bold disabled:opacity-40">تنزيل بيانات DeMix للمقارنة JSON</button>
-          <p className="mt-2 rounded-lg bg-white/70 p-3 font-mono text-xs" dir="ltr">python .\compare_db.py</p>
+          <p>للمقارنة الكاملة: من جهاز المحطة شغّل الموصل واختر DB.MDB يدويًا. الأداة تجلب بيانات DeMix للمحطة عبر اتصال قراءة فقط، وتقارن كل أعمدة المصدر، ثم تحفظ CSV وJSON على جهازك. لا يُرسل ملف Access أو سجلاته الخام إلى Vercel أو Convex.</p>
+          <p className="mt-3 rounded-lg bg-white/70 p-3 font-mono text-xs" dir="ltr">python .\\connector.py --compare-preview</p>
         </section>
 
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">NAM_WJA1 = Admix1 وNAM_WJA2 = Admix2 حسب الاتفاق. لم أفترض معنى NAM_WJA3 أو أي خانة غير معتمدة. الأعمدة الأخرى محفوظة كما وردت من المصدر. لا يوجد خصم مخزني تلقائي.</p>
