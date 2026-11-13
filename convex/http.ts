@@ -59,7 +59,8 @@ http.route({
         records: payload.records as Array<{
           sourceRecordId: string; sourceHash: string; productionAt: number;
           customerName?: string; projectName?: string; jobNo?: string;
-          concreteGrade?: string; quantity?: number; operatorName?: string; sourceUpdatedAt?: number;
+          concreteGrade?: string; quantity?: number; operatorName?: string; truckNo?: string;
+          operationState?: string; rawSourceData?: Record<string, unknown>; sourceUpdatedAt?: number;
         }>,
       });
       return Response.json(result);
