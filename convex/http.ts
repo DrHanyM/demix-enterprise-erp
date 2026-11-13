@@ -35,6 +35,37 @@ http.route({
 });
 
 http.route({
+  path: "/station-sync/check",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const authorization = request.headers.get("authorization") ?? "";
+    if (!authorization.startsWith("Bearer ")) return new Response("Unauthorized", { status: 401 });
+    const token = authorization.slice(7).trim();
+    if (!token || token.length > 512) return new Response("Unauthorized", { status: 401 });
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+    const tokenHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+    const credential = await ctx.runQuery(internal.stationSync.authenticateConnectorToken, { tokenHash });
+    if (!credential) return new Response("Unauthorized", { status: 401 });
+    const rawBody = await request.text();
+    if (rawBody.length > 64_000) return new Response("Payload too large", { status: 413 });
+    let payload: unknown;
+    try { payload = JSON.parse(rawBody); } catch { return new Response("Invalid JSON", { status: 400 }); }
+    if (!isObject(payload) || typeof payload.machineId !== "string" || !Array.isArray(payload.records) || payload.records.length < 1 || payload.records.length > 100) return new Response("Invalid check request", { status: 400 });
+    const records = payload.records as Array<{sourceRecordId:string;sourceHash:string}>;
+    if (records.some(x => !x || typeof x.sourceRecordId !== "string" || typeof x.sourceHash !== "string" || x.sourceRecordId.length > 160 || x.sourceHash.length > 128)) return new Response("Invalid check records", { status: 400 });
+    try {
+      const result = await ctx.runQuery(internal.stationSync.checkSourceRecords, {
+        stationCode: credential.stationCode, machineId: payload.machineId, records,
+      });
+      return Response.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "CHECK_FAILED";
+      return Response.json({ success: false, error: message }, { status: 400 });
+    }
+  }),
+});
+
+http.route({
   path: "/station-sync",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
