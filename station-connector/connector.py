@@ -5,7 +5,7 @@ import argparse, hashlib, json, logging, math, platform, shutil, sqlite3, tempfi
 from datetime import date, datetime, time
 from pathlib import Path
 from urllib.request import Request, urlopen
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 ROOT=Path(__file__).resolve().parent
 CONFIG_FILE=ROOT/"CONFIG"
@@ -260,6 +260,75 @@ def send_preview_next_100():
         "batchIds":batch_ids,"sourceSha256":digest}
     print(json.dumps(result,ensure_ascii=False)); return result
 
+def fetch_server_manifest(profile):
+    endpoint=profile["endpoint"].rstrip("/")+"/manifest"
+    cursor=None; result=[]
+    while True:
+        params={"numItems":"500"}
+        if cursor: params["cursor"]=cursor
+        request=Request(endpoint+"?"+urlencode(params),headers={"Authorization":"Bearer "+profile["connectorToken"]},method="GET")
+        with urlopen(request,timeout=int(profile["requestTimeoutSeconds"])) as response:
+            page=json.loads(response.read().decode())
+            if response.status!=200 or not isinstance(page.get("page"),list):
+                raise RuntimeError("Preview manifest request failed")
+        result.extend(x for x in page["page"] if x.get("machineId")==profile["machineId"])
+        if page.get("isDone",True): break
+        cursor=page.get("continueCursor")
+        if not cursor: raise RuntimeError("Preview manifest pagination did not return a cursor")
+    return result
+
+def compare_preview():
+    setup_logging()
+    profile=load_profile()
+    host=(urlsplit(profile["endpoint"]).hostname or "").lower()
+    if host != "savory-hyena-978.convex.site":
+        raise RuntimeError("Safety stop: this command is restricted to the approved Convex Preview deployment.")
+    rows,digest=read_rows(load_config(),profile)
+    local={}; duplicate_ids=set(); duplicate_count=0
+    for row in rows:
+        item=map_row(row,profile["columns"],profile.get("timezone","Africa/Cairo"))
+        key=item["sourceRecordId"]
+        if key in local:
+            duplicate_count+=1; duplicate_ids.add(key)
+        else: local[key]=item
+    server_rows=fetch_server_manifest(profile)
+    server={}
+    for item in server_rows:
+        key=str(item["sourceRecordId"])
+        if key not in server: server[key]=str(item["sourceHash"])
+    matched=file_only=demix_only=different=0; details=[]
+    for key,item in local.items():
+        server_hash=server.get(key)
+        if key in duplicate_ids:
+            status="duplicate"
+        elif server_hash is None:
+            status="file_only"; file_only+=1
+        elif server_hash==item["sourceHash"]:
+            status="matched"; matched+=1
+        else:
+            status="different"; different+=1
+        if status!="matched" and len(details)<500:
+            details.append({"status":status,"sourceRecordId":key,"sourceHash":item["sourceHash"],"serverHash":server_hash})
+    for key,server_hash in server.items():
+        if key not in local:
+            demix_only+=1
+            if len(details)<500: details.append({"status":"demix_only","sourceRecordId":key,"serverHash":server_hash})
+    report={"machineId":profile["machineId"],"sourceRecords":len(rows),"serverRecords":len(server_rows),
+        "matched":matched,"fileOnly":file_only,"demixOnly":demix_only,"different":different,
+        "duplicates":duplicate_count,"details":details}
+    body=json.dumps(report,ensure_ascii=False,separators=(",",":")).encode("utf-8")
+    request=Request(profile["endpoint"].rstrip("/")+"/reconciliation",data=body,
+        headers={"Authorization":"Bearer "+profile["connectorToken"],"Content-Type":"application/json"},method="POST")
+    with urlopen(request,timeout=int(profile["requestTimeoutSeconds"])) as response:
+        saved=json.loads(response.read().decode())
+        if response.status!=200 or not saved.get("success"): raise RuntimeError("Preview did not save the reconciliation report")
+    report["reportId"]=saved.get("reportId")
+    report["queueWritten"]=False
+    report["databaseUploaded"]=False
+    report["sourceSha256"]=digest
+    print(json.dumps(report,ensure_ascii=False))
+    return report
+
 def run_once():
     setup_logging(); source=load_config(); profile=load_profile()
     rows,digest=read_rows(source,profile); db=open_queue()
@@ -272,9 +341,11 @@ def run_once():
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--send-preview-next-100",action="store_true",help="Send up to 100 not-yet-synced records to the approved Preview only; does not write the SQLite queue.")
+    parser.add_argument("--compare-preview",action="store_true",help="Compare the local read-only Access database with Preview and save only the reconciliation summary.")
     args=parser.parse_args()
     try:
         if args.send_preview_next_100: send_preview_next_100()
+        elif args.compare_preview: compare_preview()
         else: print(json.dumps(run_once(),ensure_ascii=False))
     except Exception:
         setup_logging(); logging.exception("Sync cycle failed"); raise
