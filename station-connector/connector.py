@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """DeMix station connector. Access source is never modified."""
 from __future__ import annotations
-import hashlib, json, logging, math, platform, shutil, sqlite3, tempfile
+import argparse, hashlib, json, logging, math, platform, shutil, sqlite3, tempfile
 from datetime import date, datetime, time
 from pathlib import Path
 from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
 
 ROOT=Path(__file__).resolve().parent
 CONFIG_FILE=ROOT/"CONFIG"
@@ -188,6 +189,77 @@ def send_pending(db,profile):
             logging.exception("Send failed; records retained for retry"); break
     return sent
 
+def check_server_records(profile, records):
+    body=json.dumps({"machineId":profile["machineId"],"records":records},ensure_ascii=False,separators=(",",":")).encode("utf-8")
+    request=Request(profile["endpoint"].rstrip("/")+"/check",data=body,
+        headers={"Authorization":"Bearer "+profile["connectorToken"],"Content-Type":"application/json"},method="POST")
+    with urlopen(request,timeout=int(profile["requestTimeoutSeconds"])) as response:
+        result=json.loads(response.read().decode())
+        if response.status!=200 or not result.get("success") or not isinstance(result.get("matches"),list):
+            raise RuntimeError("Preview could not confirm existing source records")
+        return {str(x["sourceRecordId"]):str(x["sourceHash"]) for x in result["matches"]}
+
+def send_preview_next_100():
+    setup_logging()
+    profile=load_profile()
+    host=(urlsplit(profile["endpoint"]).hostname or "").lower()
+    if host != "savory-hyena-978.convex.site":
+        raise RuntimeError("Safety stop: this command is restricted to the approved Convex Preview deployment.")
+    source=load_config()
+    rows,digest=read_rows(source,profile)
+    unique={}
+    duplicates=0
+    conflicts=set()
+    for row in rows:
+        item=map_row(row,profile["columns"],profile.get("timezone","Africa/Cairo"))
+        key=item["sourceRecordId"]
+        if key in unique:
+            duplicates+=1
+            if unique[key]["sourceHash"]!=item["sourceHash"]: conflicts.add(key)
+            continue
+        unique[key]=item
+    candidates=[]
+    items=list(unique.values())
+    for start in range(0,len(items),100):
+        group=items[start:start+100]
+        check=check_server_records(profile,[{"sourceRecordId":x["sourceRecordId"],"sourceHash":x["sourceHash"]} for x in group])
+        for item in group:
+            key=item["sourceRecordId"]
+            if key in conflicts: continue
+            if check.get(key)!=item["sourceHash"]:
+                candidates.append(item)
+        if len(candidates)>=100: break
+    candidates=candidates[:100]
+    if not candidates:
+        result={"read":len(rows),"pending":0,"sent":0,"inserted":0,"updated":0,
+            "duplicateSourceRows":duplicates,"conflictingSourceIds":len(conflicts),"queueWritten":False,"sourceSha256":digest,"message":"No unsent or changed records found in Preview."}
+        print(json.dumps(result,ensure_ascii=False)); return result
+    batches=[]; current=[]
+    for item in candidates:
+        probe=current+[item]
+        body=json.dumps({"stationCode":profile["stationCode"],"machineId":profile["machineId"],"batchId":"preview-check","records":probe},ensure_ascii=False,separators=(",",":")).encode("utf-8")
+        if len(probe)>100 or len(body)>180_000:
+            if not current: raise RuntimeError("A single record exceeds the safe 180 KB batch limit.")
+            batches.append(current); current=[item]
+        else: current=probe
+    if current: batches.append(current)
+    sent=inserted=updated=0; batch_ids=[]
+    for records in batches:
+        material="|".join(x["sourceRecordId"]+":"+x["sourceHash"] for x in records)
+        batch=hashlib.sha256((profile["stationCode"]+"|"+profile["machineId"]+"|"+material).encode()).hexdigest()
+        payload={"stationCode":profile["stationCode"],"machineId":profile["machineId"],"batchId":batch,"records":records}
+        body=json.dumps(payload,ensure_ascii=False,separators=(",",":")).encode("utf-8")
+        request=Request(profile["endpoint"],data=body,headers={"Authorization":"Bearer "+profile["connectorToken"],"Content-Type":"application/json"},method="POST")
+        with urlopen(request,timeout=int(profile["requestTimeoutSeconds"])) as response:
+            result=json.loads(response.read().decode())
+            if response.status!=200 or not result.get("success") or result.get("received")!=len(records):
+                raise RuntimeError("Preview did not acknowledge the complete batch; stop and inspect the response.")
+        sent+=result["received"]; inserted+=result.get("inserted",0); updated+=result.get("updated",0); batch_ids.append(batch)
+    result={"read":len(rows),"pending":len(candidates),"sent":sent,"inserted":inserted,"updated":updated,
+        "duplicateSourceRows":duplicates,"conflictingSourceIds":len(conflicts),"queueWritten":False,
+        "batchIds":batch_ids,"sourceSha256":digest}
+    print(json.dumps(result,ensure_ascii=False)); return result
+
 def run_once():
     setup_logging(); source=load_config(); profile=load_profile()
     rows,digest=read_rows(source,profile); db=open_queue()
@@ -198,6 +270,11 @@ def run_once():
     finally: db.close()
 
 if __name__=="__main__":
-    try: print(json.dumps(run_once(),ensure_ascii=False))
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--send-preview-next-100",action="store_true",help="Send up to 100 not-yet-synced records to the approved Preview only; does not write the SQLite queue.")
+    args=parser.parse_args()
+    try:
+        if args.send_preview_next_100: send_preview_next_100()
+        else: print(json.dumps(run_once(),ensure_ascii=False))
     except Exception:
         setup_logging(); logging.exception("Sync cycle failed"); raise
