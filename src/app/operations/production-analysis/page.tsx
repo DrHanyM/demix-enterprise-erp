@@ -166,6 +166,7 @@ export default function ProductionAnalysisPage() {
   }, [filtered]);
 
   const exhausted = status === "Exhausted";
+  const exportComplete = exhausted && !from && !to && !fromTime && !toTime && !customer && !project && !mix && !mixer && !driver && !job && !state && !search;
   const reset = () => {
     setFrom(""); setTo(""); setFromTime(""); setToTime(""); setStationId("");
     setCustomer(""); setProject(""); setMix(""); setMixer(""); setDriver(""); setJob(""); setState(""); setSearch("");
@@ -358,8 +359,8 @@ export default function ProductionAnalysisPage() {
             <h2 className="font-bold">المقارنة اليدوية مع DB.MDB — محليًا فقط</h2>
             <span className="text-xs">لا يتم رفع ملف Access</span>
           </div>
-          <p>حمّل كل صفحات النتائج ثم نزّل JSON. شغّل أداة المقارنة من جهازك واختر DB.MDB وملف JSON يدويًا؛ تُقرأ القاعدة بنسخة مؤقتة Read Only ويُحفظ تقرير CSV وJSON محليًا، دون إرسال ملف Access أو بياناته الخام إلى Vercel أو Convex.</p>
-          <button onClick={exportJson} disabled={status !== "Exhausted" || !rows.length} className="mt-3 rounded-lg border border-sky-700 px-4 py-2 text-xs font-bold disabled:opacity-40">تنزيل بيانات DeMix للمقارنة JSON</button>
+          <p>للمقارنة الكاملة: امسح التاريخ وكل فلاتر البحث (يمكنك إبقاء المحطة محددة)، ثم حمّل جميع الصفحات ونزّل JSON. شغّل أداة المقارنة على جهازك واختر DB.MDB وملف JSON يدويًا؛ تُقرأ القاعدة بنسخة مؤقتة Read Only ويُحفظ تقرير CSV وJSON محليًا، دون إرسال ملف Access أو بياناته الخام إلى Vercel أو Convex.</p>
+          <button onClick={exportJson} disabled={!exportComplete || !rows.length} className="mt-3 rounded-lg border border-sky-700 px-4 py-2 text-xs font-bold disabled:opacity-40">تنزيل بيانات DeMix للمقارنة JSON</button>
           <p className="mt-2 rounded-lg bg-white/70 p-3 font-mono text-xs" dir="ltr">python .\compare_db.py</p>
         </section>
 
