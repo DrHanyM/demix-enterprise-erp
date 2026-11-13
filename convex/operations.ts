@@ -26,8 +26,6 @@ export const registerOperationsPermissions = mutation({
       ["equipment.manage", "إدارة المعدات والصيانة", "equipment", "manage"],
       ["inventory.view", "عرض المخازن والمخزون", "inventory", "view"],
       ["inventory.manage", "إدارة المخازن وحركات المخزون", "inventory", "manage"],
-      ["materials.view", "عرض استهلاك الخامات", "materials", "view"],
-      ["materials.manage", "إدارة ربط حقول الخامات", "materials", "manage"],
       ["operations.reports.view", "عرض تقارير التشغيل الموحدة", "operations.reports", "view"],
     ] as const;
     const created: string[] = [];
