@@ -3,6 +3,7 @@ import BackToDashboard from "@/components/BackToDashboard";
 export default function OperationsPage() {
   const cards = [
     { href: "/operations/production", title: "سجل الإنتاج المستورد", description: "متابعة الإنتاج الفعلي الوارد من المحطات مع فلاتر التاريخ والمحطة، دون تعديل المصدر." },
+    { href: "/operations/production-analysis", title: "تحليل إنتاج المحطات", description: "إنتاج اليوم بالمتر المكعب، بيانات الخامات والإضافات، وفلاتر العميل والمشروع والخلطة والخلاطة والسائق." },
     { href: "/operations/equipment", title: "المعدات والصيانة", description: "سجل الأصول والمعدات وأوامر الصيانة والأعطال والتوقف." },
     { href: "/operations/inventory", title: "المخازن والمخزون", description: "تعريف المخازن والأصناف وأرصدة المخزون وحركات الاستلام والصرف والتحويل." },
     { href: "/operations/reports", title: "تقارير التشغيل الموحدة", description: "مؤشرات الإنتاج الفعلي والمعدات والصيانة والمخزون." },
