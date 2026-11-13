@@ -95,6 +95,7 @@ export const createMaintenanceOrder = mutation({
   handler: async (ctx, args) => {
     const { user } = await requireCentralPermission(ctx, "equipment.manage"); op(args.operationId);
     const equipment = await ctx.db.get(args.equipmentId); if (!equipment) throw new Error("EQUIPMENT_NOT_FOUND");
+    if (equipment.status === "inactive" || equipment.status === "retired") throw new Error("EQUIPMENT_NOT_AVAILABLE_FOR_MAINTENANCE");
     const orderNo = textField(args.orderNo, "INVALID_MAINTENANCE_ORDER_NO", 60);
     const description = textField(args.description, "INVALID_MAINTENANCE_DESCRIPTION", 2000);
     if (await uniqueBy(ctx, "maintenanceOrders", "by_orderNo", "orderNo", orderNo)) throw new Error("DUPLICATE_MAINTENANCE_ORDER");
