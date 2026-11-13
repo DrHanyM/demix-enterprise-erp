@@ -34,8 +34,9 @@ def load_profile():
         if not str(p.get(k,"")).strip() or any(x in str(p.get(k,"")) for x in ("REPLACE_","PROVISIONED_","YOUR-PREVIEW")): raise RuntimeError("Missing station profile field: "+k)
     p.setdefault("machineId",platform.node())
     p.setdefault("table","sRecords")
-    p.setdefault("columns",{"id":"id","time":"sctime","quantity":"output_vol","job":"job_no","grade":"strength","operator":"operator","customer":"CUST_NM","project":"PROJ_NM"})
+    p.setdefault("columns",{"id":"ID","time":"ScTime","quantity":"Output_vol","job":"Job_No","grade":"Strength","operator":"Operator","customer":"Cust_Nm","project":"Proj_Nm","truck":"Truck_No","driver":"Driver","operationState":"OperationState"})
     p.setdefault("odbcDriver","Microsoft Access Driver (*.mdb, *.accdb)")
+    p.setdefault("maxBatchBytes",180000)
     p.setdefault("requestTimeoutSeconds",30)
     return p
 
@@ -89,6 +90,16 @@ def clean(value):
     value=str(value).strip()
     return value or None
 
+def json_safe(value):
+    if value is None or isinstance(value,(str,int,bool)): return value
+    if isinstance(value,float): return value if value == value and abs(value) != float("inf") else None
+    if isinstance(value,datetime): return value.isoformat()
+    if hasattr(value,"isoformat") and callable(value.isoformat): return value.isoformat()
+    if isinstance(value,bytes): return {"__bytes_base64__":__import__("base64").b64encode(value).decode("ascii")}
+    if isinstance(value,dict): return {str(k):json_safe(v) for k,v in value.items()}
+    if isinstance(value,(list,tuple)): return [json_safe(v) for v in value]
+    return str(value)
+
 def map_row(row,columns,timezone_name="Africa/Cairo"):
     values={str(k).lower():v for k,v in row.items()}
     def get(alias):
@@ -97,11 +108,15 @@ def map_row(row,columns,timezone_name="Africa/Cairo"):
     source_id=clean(get("id"))
     if source_id is None: raise ValueError("Source row has no configured unique ID")
     quantity=get("quantity")
+    operation_state=get("operationState")
     result={"sourceRecordId":source_id,"productionAt":epoch_ms(get("time"),timezone_name),
         "customerName":clean(get("customer")),"projectName":clean(get("project")),
         "jobNo":clean(get("job")),"concreteGrade":clean(get("grade")),
-        "quantity":float(quantity) if quantity is not None else None,"operatorName":clean(get("operator"))}
-    raw=json.dumps(result,ensure_ascii=False,sort_keys=True,separators=(",",":"),default=str)
+        "quantity":float(quantity) if quantity is not None else None,"operatorName":clean(get("operator")),
+        "truckNumber":clean(get("truck")),"driverName":clean(get("driver")),
+        "operationState":float(operation_state) if operation_state is not None else None,
+        "rawSourceData":{str(k):json_safe(v) for k,v in row.items()}}
+    raw=json.dumps(result,ensure_ascii=False,sort_keys=True,separators=(",",":"),allow_nan=False)
     result["sourceHash"]=hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return {k:v for k,v in result.items() if v is not None}
 
@@ -136,11 +151,21 @@ def next_batch(db,profile):
     rows=db.execute("SELECT source_id,source_hash,payload FROM outbox WHERE station=? AND machine=? AND status='pending' ORDER BY queued_at,source_id LIMIT ?",
         (station,machine,BATCH_SIZE)).fetchall()
     if not rows:return None
-    material="|".join(r[0]+":"+r[1] for r in rows)
+    max_bytes=int(profile.get("maxBatchBytes",180000))
+    records=[]; selected=[]
+    for row in rows:
+        candidate=records+[json.loads(row[2])]
+        envelope={"stationCode":station,"machineId":machine,"batchId":"0"*64,"records":candidate}
+        size=len(json.dumps(envelope,ensure_ascii=False,separators=(",",":"),allow_nan=False).encode("utf-8"))
+        if size>max_bytes:
+            if not records: raise RuntimeError("A single source record exceeds the configured safe batch byte limit.")
+            break
+        records=candidate; selected.append(row)
+    material="|".join(r[0]+":"+r[1] for r in selected)
     batch=hashlib.sha256((station+"|"+machine+"|"+material).encode()).hexdigest()
     db.executemany("UPDATE outbox SET status='sending',batch_id=? WHERE station=? AND machine=? AND source_id=?",
-        [(batch,station,machine,r[0]) for r in rows]); db.commit()
-    return batch,[json.loads(r[2]) for r in rows],[r[0] for r in rows]
+        [(batch,station,machine,r[0]) for r in selected]); db.commit()
+    return batch,records,[r[0] for r in selected]
 
 def send_pending(db,profile):
     sent=0; station=profile["stationCode"]; machine=profile["machineId"]
