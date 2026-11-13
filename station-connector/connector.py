@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DeMix station connector. Access source is never modified."""
 from __future__ import annotations
-import hashlib, json, logging, platform, shutil, sqlite3, tempfile
+import argparse, hashlib, json, logging, platform, shutil, sqlite3, tempfile
 from datetime import datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -64,14 +64,20 @@ def quote_identifier(value):
     if not value or "]" in value or "\x00" in value: raise ValueError("Invalid Access identifier")
     return "["+value+"]"
 
-def read_rows(source_path,profile):
+def read_rows(source_path,profile,limit=None):
     try: import pyodbc
     except ImportError as exc: raise RuntimeError("pyodbc missing; rerun INSTALL.ps1") from exc
     folder,snapshot,digest=snapshot_database(source_path); connection=None
     try:
         driver=profile["odbcDriver"]
         connection=pyodbc.connect(f"DRIVER={{{driver}}};DBQ={snapshot};ReadOnly=1;",readonly=True,timeout=15)
-        cursor=connection.cursor(); cursor.execute("SELECT * FROM "+quote_identifier(profile["table"]))
+        cursor=connection.cursor()
+        table=quote_identifier(profile["table"])
+        if limit is not None:
+            if not isinstance(limit,int) or limit<1 or limit>1000: raise ValueError("Validation limit must be between 1 and 1000.")
+            cursor.execute(f"SELECT TOP {limit} * FROM "+table)
+        else:
+            cursor.execute("SELECT * FROM "+table)
         names=[c[0] for c in cursor.description]
         return [dict(zip(names,row)) for row in cursor.fetchall()],digest
     finally:
@@ -188,9 +194,24 @@ def send_pending(db,profile):
             logging.exception("Send failed; records retained for retry"); break
     return sent
 
-def run_once():
+def run_once(validate_only=False,limit=None):
     setup_logging(); source=load_config(); profile=load_profile()
-    rows,digest=read_rows(source,profile); db=open_queue()
+    if validate_only and limit is None:
+        raise ValueError("--validate-only requires an explicit --limit (1..1000).")
+    rows,digest=read_rows(source,profile,limit if validate_only else None)
+    if validate_only:
+        valid=0; invalid=0; errors={}
+        for row in rows:
+            try:
+                map_row(row,profile["columns"],profile.get("timezone","Africa/Cairo"))
+                valid+=1
+            except Exception as exc:
+                invalid+=1
+                key=type(exc).__name__+": "+str(exc)
+                errors[key]=errors.get(key,0)+1
+        return {"mode":"validate_only","read":len(rows),"valid":valid,"invalid":invalid,
+                "validationErrors":errors,"sourceSha256":digest,"queueWritten":False,"sent":0}
+    db=open_queue()
     try:
         added=enqueue(db,profile,rows); sent=send_pending(db,profile)
         result={"read":len(rows),"queued":added,"sent":sent}
@@ -198,6 +219,13 @@ def run_once():
     finally: db.close()
 
 if __name__=="__main__":
-    try: print(json.dumps(run_once(),ensure_ascii=False))
+    parser=argparse.ArgumentParser(description="DeMix station connector")
+    parser.add_argument("--validate-only",action="store_true",
+                        help="Read a bounded sample and validate mapping without writing the queue or sending data.")
+    parser.add_argument("--limit",type=int,
+                        help="Required with --validate-only; number of source rows to inspect (1..1000).")
+    args=parser.parse_args()
+    try:
+        print(json.dumps(run_once(validate_only=args.validate_only,limit=args.limit),ensure_ascii=False))
     except Exception:
         setup_logging(); logging.exception("Sync cycle failed"); raise
