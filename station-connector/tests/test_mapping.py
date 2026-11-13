@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 import connector
 
-COLUMNS={"id":"id","time":"sctime","quantity":"output_vol","job":"job_no","grade":"strength","operator":"operator","customer":"CUST_NM","project":"PROJ_NM"}
+COLUMNS={"id":"id","time":"sctime","quantity":"output_vol","job":"job_no","grade":"strength","operator":"operator","customer":"CUST_NM","project":"PROJ_NM","truck":"Truck_No","operationState":"OperationState","gl":"GL","fl":"FL","wj":"WJ","shui":"Shui"}
 
 class ConnectorTests(unittest.TestCase):
     def row(self):
