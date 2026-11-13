@@ -13,6 +13,9 @@ const importedRecord = v.object({
   concreteGrade: v.optional(v.string()),
   quantity: v.optional(v.number()),
   operatorName: v.optional(v.string()),
+  truckNo: v.optional(v.string()),
+  operationState: v.optional(v.string()),
+  rawSourceData: v.optional(v.any()),
   sourceUpdatedAt: v.optional(v.number()),
 });
 
@@ -84,7 +87,7 @@ export const ingestBatch = internalMutation({
       if (!record.sourceHash.trim() || record.sourceHash.length > 128) throw new Error("INVALID_SOURCE_HASH");
       if (!Number.isFinite(record.productionAt) || record.productionAt <= 0) throw new Error("INVALID_PRODUCTION_TIMESTAMP");
       if (record.quantity !== undefined && (!Number.isFinite(record.quantity) || record.quantity < 0 || record.quantity > 100000)) throw new Error("INVALID_PRODUCTION_QUANTITY");
-      for (const value of [record.customerName, record.projectName, record.jobNo, record.concreteGrade, record.operatorName]) {
+      for (const value of [record.customerName, record.projectName, record.jobNo, record.concreteGrade, record.operatorName, record.truckNo, record.operationState]) {
         if (value !== undefined && value.length > 300) throw new Error("SOURCE_FIELD_TOO_LONG");
       }
       const existing = await ctx.db.query("stationProductionImports")
@@ -108,6 +111,9 @@ export const ingestBatch = internalMutation({
             concreteGrade: record.concreteGrade,
             quantity: record.quantity,
             operatorName: record.operatorName,
+            truckNo: record.truckNo,
+            operationState: record.operationState,
+            rawSourceData: record.rawSourceData,
             sourceUpdatedAt: record.sourceUpdatedAt,
             importedAt: now,
           });
