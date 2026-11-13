@@ -93,7 +93,7 @@ export default function StationToolsPage() {
         table: "sRecords",
         columns: {
           id: "id", time: "sctime", quantity: "output_vol", job: "job_no",
-          grade: "strength", operator: "operator", customer: "CUST_NM", project: "PROJ_NM",
+          grade: "strength", operator: "operator", driver: "Driver", customer: "CUST_NM", project: "PROJ_NM",
         },
         odbcDriver: "Microsoft Access Driver (*.mdb, *.accdb)",
         requestTimeoutSeconds: 30,
