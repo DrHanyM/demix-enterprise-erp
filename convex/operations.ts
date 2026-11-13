@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
@@ -268,6 +269,32 @@ export const listOperationsOverview = query({
   },
 });
 
+
+
+
+export const listImportedProductionPage = query({
+  args: {
+    stationId: v.optional(v.id("stations")),
+    fromAt: v.optional(v.number()),
+    toAt: v.optional(v.number()),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    await requireCentralPermission(ctx, "production.view");
+    const fromAt = args.fromAt ?? 0;
+    const toAt = args.toAt ?? Date.now();
+    if (fromAt > toAt) throw new Error("INVALID_PRODUCTION_RANGE");
+    const base = args.stationId
+      ? ctx.db.query("stationProductionImports").withIndex("by_station_time", q =>
+          q.eq("stationId", args.stationId!).gte("productionAt", fromAt).lte("productionAt", toAt))
+      : ctx.db.query("stationProductionImports").withIndex("by_productionAt", q =>
+          q.gte("productionAt", fromAt).lte("productionAt", toAt));
+    const page = await base.order("desc").paginate(args.paginationOpts);
+    const stations = await ctx.db.query("stations").collect();
+    const names = new Map(stations.map(s => [s._id, { name: s.name, code: s.code }]));
+    return { ...page, page: page.page.map(r => ({ ...r, station: names.get(r.stationId) ?? null })) };
+  },
+});
 
 export const listImportedProduction = query({
   args: {
