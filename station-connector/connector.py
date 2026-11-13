@@ -240,7 +240,7 @@ def send_preview_window(start,end):
     sent=inserted=updated=0; batch_ids=[]
     for records in batches:
         material="|".join(x["sourceRecordId"]+":"+x["sourceHash"] for x in records)
-        batch=hashlib.sha256((profile["stationCode"]+"|"+profile["machineId"]+"|"+material).encode()).hexdigest()
+        batch=hashlib.sha256(("preview-reconcile-v2|"+profile["stationCode"]+"|"+profile["machineId"]+"|"+material).encode()).hexdigest()
         payload={"stationCode":profile["stationCode"],"machineId":profile["machineId"],"batchId":batch,"records":records}
         body=json.dumps(payload,ensure_ascii=False,separators=(",",":")).encode("utf-8")
         request=Request(profile["endpoint"],data=body,headers={"Authorization":"Bearer "+profile["connectorToken"],"Content-Type":"application/json"},method="POST")
