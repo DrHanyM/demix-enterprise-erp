@@ -133,7 +133,18 @@ export const completeMaintenanceOrder = mutation({
     const now = Date.now();
     await ctx.db.patch(order._id, { status: "completed", resolution, downtimeMinutes: args.downtimeMinutes, cost: args.cost, completedAt: now, updatedBy: user._id, updatedAt: now });
     const equipment = await ctx.db.get(order.equipmentId);
-    if (equipment && equipment.status === "maintenance") await ctx.db.patch(equipment._id, { status: "active", updatedAt: now });
+    if (equipment && equipment.status === "maintenance") {
+      const [otherOpen, otherInProgress] = await Promise.all([
+        ctx.db.query("maintenanceOrders")
+          .withIndex("by_equipment_status", q => q.eq("equipmentId", equipment._id).eq("status", "open"))
+          .take(2),
+        ctx.db.query("maintenanceOrders")
+          .withIndex("by_equipment_status", q => q.eq("equipmentId", equipment._id).eq("status", "in_progress"))
+          .take(2),
+      ]);
+      const hasOtherActiveOrder = [...otherOpen, ...otherInProgress].some(x => x._id !== order._id);
+      if (!hasOtherActiveOrder) await ctx.db.patch(equipment._id, { status: "active", updatedAt: now });
+    }
     await appendAuditLog(ctx, { stationId: order.stationId, action: "equipment.maintenance.complete", entityType: "maintenanceOrder", entityId: order._id, operationId: args.operationId, details: { downtimeMinutes: args.downtimeMinutes, cost: args.cost } });
     return { success: true };
   },
@@ -263,12 +274,14 @@ export const listImportedProduction = query({
     const limit = Math.max(1, Math.min(1000, Math.floor(args.limit ?? 500)));
     if (fromAt > toAt) throw new Error("INVALID_PRODUCTION_RANGE");
     const rows = args.stationId
-      ? await ctx.db.query("stationProductionImports").withIndex("by_station_time", q => q.eq("stationId", args.stationId!)).order("desc").take(5000)
-      : await ctx.db.query("stationProductionImports").order("desc").take(5000);
+      ? await ctx.db.query("stationProductionImports")
+          .withIndex("by_station_time", q => q.eq("stationId", args.stationId!).gte("productionAt", fromAt).lte("productionAt", toAt))
+          .order("desc").take(limit)
+      : await ctx.db.query("stationProductionImports")
+          .withIndex("by_productionAt", q => q.gte("productionAt", fromAt).lte("productionAt", toAt))
+          .order("desc").take(limit);
     const stations = await ctx.db.query("stations").collect();
     const names = new Map(stations.map(s => [s._id, { name: s.name, code: s.code }]));
-    return rows.filter(r => r.productionAt >= fromAt && r.productionAt <= toAt)
-      .sort((a,b)=>b.productionAt-a.productionAt).slice(0,limit)
-      .map(r => ({ ...r, station: names.get(r.stationId) ?? null }));
+    return rows.map(r => ({ ...r, station: names.get(r.stationId) ?? null }));
   },
 });
