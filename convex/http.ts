@@ -110,7 +110,7 @@ http.route({
     let payload: unknown;
     try { payload = JSON.parse(rawBody); } catch { return new Response("Invalid JSON", { status: 400 }); }
     if (!isObject(payload) || typeof payload.machineId !== "string" ||
-      !["sourceRecords","serverRecords","matched","fileOnly","demixOnly","different","duplicates"].every(k => Number.isInteger(payload[k]) && Number(payload[k]) >= 0) ||
+      !["sourceRecords","serverRecords","matched","fileOnly","demixOnly","different","duplicates"].every(k => typeof payload[k] === "number" && Number.isInteger(payload[k]) && Number(payload[k]) >= 0) ||
       !Array.isArray(payload.details) || payload.details.length > 500) return new Response("Invalid reconciliation report", { status: 400 });
     try {
       const result = await ctx.runMutation(internal.stationSync.saveReconciliationReport, {
