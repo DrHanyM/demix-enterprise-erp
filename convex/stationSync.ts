@@ -184,6 +184,26 @@ export const checkSourceRecords = internalQuery({
   },
 });
 
+export const listStationManifest = internalQuery({
+  args: { stationCode: v.string(), cursor: v.union(v.string(), v.null()), numItems: v.number() },
+  handler: async (ctx, args) => {
+    if (!Number.isInteger(args.numItems) || args.numItems < 1 || args.numItems > 100) throw new Error("INVALID_MANIFEST_PAGE_SIZE");
+    const station = await ctx.db.query("stations").withIndex("by_code", q => q.eq("code", args.stationCode)).unique();
+    if (!station || station.status !== "active") throw new Error("STATION_NOT_FOUND_OR_INACTIVE");
+    const page = await ctx.db.query("stationProductionImports")
+      .withIndex("by_station_time", q => q.eq("stationId", station._id))
+      .paginate({ cursor: args.cursor, numItems: args.numItems });
+    return {
+      ...page,
+      page: page.page.map(row => ({
+        sourceRecordId: row.sourceRecordId, sourceHash: row.sourceHash,
+        machineId: row.machineId, productionAt: row.productionAt,
+        rawSourceData: row.rawSourceData,
+      })),
+    };
+  },
+});
+
 export const recordFailure = internalMutation({
   args: { stationCode: v.string(), message: v.string() },
   handler: async (ctx, args) => {
