@@ -25,6 +25,10 @@ const menuGroups: {
     title: "إدارة الإنتاج والتشغيل",
     items: [
       { icon: "▦", label: "التشغيل والإنتاج", href: "/production" },
+      { icon: "▥", label: "سجل الإنتاج المستورد", href: "/operations/production" },
+      { icon: "⚙", label: "المعدات والصيانة", href: "/operations/equipment" },
+      { icon: "▤", label: "المخازن والمخزون", href: "/operations/inventory" },
+      { icon: "▦", label: "مركز العمليات", href: "/operations" },
       { icon: "⇄", label: "أدوات المحطات والمزامنة", href: "/stations/tools" },
     ],
   },
