@@ -11,6 +11,7 @@
     "job": "job_no",
     "grade": "strength",
     "operator": "operator",
+    "driver": "Driver",
     "customer": "CUST_NM",
     "project": "PROJ_NM",
     "truck": "Truck_No",
