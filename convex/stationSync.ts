@@ -101,7 +101,7 @@ export const ingestBatch = internalMutation({
       const adoptLegacy = legacy && legacy.machineId === undefined ? legacy : null;
       const current = existing ?? adoptLegacy;
       if (current) {
-        if (current.sourceHash !== record.sourceHash || current.machineId !== args.machineId) {
+        if (current.sourceHash !== record.sourceHash || current.machineId !== args.machineId || current.rawSourceData === undefined || current.rawSourceData === null || (typeof current.rawSourceData === "object" && Object.keys(current.rawSourceData).length === 0)) {
           await ctx.db.patch(current._id, {
             machineId: args.machineId,
             sourceHash: record.sourceHash,
@@ -178,7 +178,7 @@ export const checkSourceRecords = internalQuery({
         .withIndex("by_station_source", q => q.eq("stationId", station._id).eq("sourceRecordId", record.sourceRecordId))
         .unique();
       const found = current ?? (legacy?.machineId === undefined ? legacy : null);
-      if (found) matches.push({ sourceRecordId: found.sourceRecordId, sourceHash: found.sourceHash });
+      if (found) matches.push({ sourceRecordId: found.sourceRecordId, sourceHash: found.sourceHash, hasRawSourceData: found.rawSourceData !== undefined && found.rawSourceData !== null && !(typeof found.rawSourceData === "object" && Object.keys(found.rawSourceData).length === 0) });
     }
     return { success: true, matches };
   },
