@@ -248,6 +248,11 @@ export default function ProductionAnalysisPage() {
   const byCustomer = useMemo(() => breakdown(filtered, (row) => row.customerName ?? ""), [filtered]);
   const byProject = useMemo(() => breakdown(filtered, (row) => row.projectName ?? ""), [filtered]);
   const byLine = useMemo(() => breakdown(filtered, (row) => show(raw(row, "ProduceLine"))), [filtered]);
+  const byMixer = useMemo(() => breakdown(filtered, (row) => show(row.truckNo ?? raw(row, "Truck_No"))), [filtered]);
+  const byDriver = useMemo(() => breakdown(filtered, (row) => show(row.driverName ?? raw(row, "Driver"))), [filtered]);
+  const byStrength = useMemo(() => breakdown(filtered, (row) => show(row.concreteGrade ?? raw(row, "Strength"))), [filtered]);
+  const byLocation = useMemo(() => breakdown(filtered, (row) => show(raw(row, "Location"))), [filtered]);
+  const byDeliveryMode = useMemo(() => breakdown(filtered, (row) => show(raw(row, "Delivery_Mode"))), [filtered]);
   const duplicateCount = useMemo(() => {
     const seen = new Set<string>(), duplicates = new Set<string>();
     for (const row of filtered) {
@@ -351,8 +356,8 @@ export default function ProductionAnalysisPage() {
           <SourceSelect label="الهبوط / TaLuoDu" value={slump} onChange={setSlump} values={options.slumps} />
           <SourceSelect label="KangShenLevel (المصدر)" value={kangShen} onChange={setKangShen} values={options.kangShenLevels} />
           <SourceSelect label="حالة القراءة / ReadState" value={readState} onChange={setReadState} values={options.readStates} />
-          <SourceSelect label="كود التوزيع / AttemperCode" value={attenderCode} onChange={setAttenderCode} values={options.attenderCodes} />
-          <SourceSelect label="وحدة الإنشاء / Const_Unit" value={constUnit} onChange={setConstUnit} values={options.constUnits} />
+          <SourceSelect label="AttemperCode (المصدر)" value={attenderCode} onChange={setAttenderCode} values={options.attenderCodes} />
+          <SourceSelect label="Const_Unit (المصدر)" value={constUnit} onChange={setConstUnit} values={options.constUnits} />
           <SourceSelect label="رمز المصدر / SaJiangSymbol" value={saJiangSymbol} onChange={setSaJiangSymbol} values={options.saJiangSymbols} />
           <label className="text-xs text-slate-600">بحث في الملاحظات
             <input className="mt-1 block w-full rounded-lg border p-2 text-sm" placeholder="Remark / RecordRemark / SynchRemark" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -427,6 +432,11 @@ export default function ProductionAnalysisPage() {
         <section className="grid gap-3 xl:grid-cols-2">
           <BreakdownTable title="مقارنة الإنتاج حسب المحطة" items={byStation} />
           <BreakdownTable title="مقارنة الإنتاج حسب خط الإنتاج" items={byLine} />
+          <BreakdownTable title="إنتاج الخلاطات / Truck_No" items={byMixer} />
+          <BreakdownTable title="إنتاج السائقين / Driver" items={byDriver} />
+          <BreakdownTable title="توزيع الخلطات / Strength" items={byStrength} />
+          <BreakdownTable title="إنتاج المواقع" items={byLocation} />
+          <BreakdownTable title="طرق التسليم" items={byDeliveryMode} />
           <BreakdownTable title="إنتاج العملاء" items={byCustomer} />
           <BreakdownTable title="إنتاج المشروعات" items={byProject} />
         </section>
