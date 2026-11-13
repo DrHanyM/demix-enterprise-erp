@@ -79,6 +79,18 @@ function materialSummary(rows: Row[]) {
   });
 }
 
+function breakdown(rows: Row[], keyOf: (row: Row) => string) {
+  const groups = new Map<string, { name: string; qty: number; count: number }>();
+  for (const row of rows) {
+    const name = keyOf(row).trim() || "غير محدد";
+    const value = groups.get(name) ?? { name, qty: 0, count: 0 };
+    value.qty += row.quantity ?? 0;
+    value.count += 1;
+    groups.set(name, value);
+  }
+  return [...groups.values()].sort((a, b) => b.qty - a.qty);
+}
+
 function saveFile(filename: string, content: string, type: string) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -219,6 +231,25 @@ export default function ProductionAnalysisPage() {
     }
     return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [filtered]);
+  const hourly = useMemo(() => breakdown(filtered, (row) => {
+    const date = new Date(row.productionAt);
+    return dayOf(row.productionAt) + " " + String(date.getHours()).padStart(2, "0") + ":00";
+  }), [filtered]);
+  const monthly = useMemo(() => breakdown(filtered, (row) => dayOf(row.productionAt).slice(0, 7)), [filtered]);
+  const yearly = useMemo(() => breakdown(filtered, (row) => dayOf(row.productionAt).slice(0, 4)), [filtered]);
+  const byStation = useMemo(() => breakdown(filtered, (row) => row.station?.name ?? ""), [filtered]);
+  const byCustomer = useMemo(() => breakdown(filtered, (row) => row.customerName ?? ""), [filtered]);
+  const byProject = useMemo(() => breakdown(filtered, (row) => row.projectName ?? ""), [filtered]);
+  const byLine = useMemo(() => breakdown(filtered, (row) => show(raw(row, "ProduceLine"))), [filtered]);
+  const duplicateCount = useMemo(() => {
+    const seen = new Set<string>(), duplicates = new Set<string>();
+    for (const row of filtered) {
+      const key = (row.station?.code ?? "") + ":" + row.sourceRecordId;
+      if (seen.has(key)) duplicates.add(key); else seen.add(key);
+    }
+    return duplicates.size;
+  }, [filtered]);
+  const incompleteCount = filtered.filter((row) => !row.customerName || !row.projectName || !row.jobNo || row.quantity === undefined).length;
 
   const exhausted = status === "Exhausted";
   const reset = () => {
