@@ -1,12 +1,16 @@
 import { auth } from "@clerk/nextjs/server";
+import CurrentUserName from "@/components/CurrentUserName";
+import AdminConnectionStatus from "@/components/AdminConnectionStatus";
+import UserManagementNavLink from "@/components/UserManagementNavLink";
+import LogoutButton from "@/components/LogoutButton";
 
 const menuGroups: {
   title: string;
-  items: { icon: string; label: string; active?: boolean }[];
+  items: { icon: string; label: string; active?: boolean; href?: string }[];
 }[] = [
   {
     title: "الرئيسية",
-    items: [{ icon: "▦", label: "لوحة التحكم", active: true }],
+    items: [{ icon: "▦", label: "لوحة التحكم", active: true, href: "/" }],
   },
   {
     title: "إدارة الموارد البشرية",
@@ -30,7 +34,7 @@ const menuGroups: {
     title: "إدارة النظام",
     items: [
       { icon: "⌂", label: "الشركات والمحطات" },
-      { icon: "⚙", label: "المستخدمون والصلاحيات" },
+      { icon: "⚙", label: "المستخدمون والصلاحيات", href: "/users" },
       { icon: "◈", label: "سجل المراجعة" },
       { icon: "⚙", label: "إعدادات النظام" },
     ],
@@ -137,6 +141,7 @@ function SectionTitle({
 export default async function Home() {
   await auth.protect();
 
+
   return (
     <main
       id="dashboard"
@@ -174,6 +179,10 @@ export default async function Home() {
           </div>
 
           <nav className="flex-1 space-y-6 overflow-y-auto px-4 pb-6">
+            <a href="/production" className="flex items-center gap-3 rounded-lg bg-teal-400/10 px-3 py-2.5 text-xs font-semibold text-teal-200 hover:bg-teal-400/20">
+              <span className="w-5 text-center text-base">▦</span>
+              التشغيل والإنتاج
+            </a>
             {menuGroups.map((group) => (
               <div key={group.title}>
                 <div className="mb-2 px-3 text-[10px] font-bold text-slate-400">
@@ -181,22 +190,34 @@ export default async function Home() {
                 </div>
                 <div className="space-y-1">
                   {group.items.map((item) => (
-                    <div
-                      key={item.label}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs ${
-                        item.active
-                          ? "bg-teal-400 font-bold text-[#172b4d]"
-                          : "text-slate-200"
-                      }`}
-                    >
-                      <span className="w-5 text-center text-base">
-                        {item.icon}
-                      </span>
-                      <span>{item.label}</span>
-                      {item.active && (
-                        <span className="mr-auto h-1.5 w-1.5 rounded-full bg-[#172b4d]" />
-                      )}
-                    </div>
+                    item.href === "/users" ? (
+                      <UserManagementNavLink key={item.label} />
+                    ) : item.href ? (
+                      <a
+                        key={item.label}
+                        href={item.href}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs transition-colors hover:bg-white/10 ${
+                          item.active
+                            ? "bg-teal-400 font-bold text-[#172b4d] hover:bg-teal-300"
+                            : "text-slate-200"
+                        }`}
+                      >
+                        <span className="w-5 text-center text-base">{item.icon}</span>
+                        <span>{item.label}</span>
+                        {item.active && <span className="mr-auto h-1.5 w-1.5 rounded-full bg-[#172b4d]" />}
+                      </a>
+                    ) : (
+                      <div
+                        key={item.label}
+                        aria-disabled="true"
+                        title="هذه الوحدة لم يتم تفعيلها بعد"
+                        className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-slate-400/60"
+                      >
+                        <span className="w-5 text-center text-base">{item.icon}</span>
+                        <span>{item.label}</span>
+                        <span className="mr-auto text-[9px] text-slate-500">قريباً</span>
+                      </div>
+                    )
                   ))}
                 </div>
               </div>
@@ -209,10 +230,7 @@ export default async function Home() {
                 م
               </div>
               <div>
-                <div className="text-xs font-bold">مدير النظام</div>
-                <div className="mt-1 text-[10px] text-slate-400">
-                  الإدارة المركزية
-                </div>
+                <div className="text-xs font-bold"><CurrentUserName /></div>
               </div>
             </div>
           </div>
@@ -235,10 +253,15 @@ export default async function Home() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              <LogoutButton />
               <div className="hidden items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 sm:flex">
                 <span className="text-teal-600">▣</span>
                 جميع المحطات
                 <span className="text-slate-400">⌄</span>
+              </div>
+
+              <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[10px] font-semibold text-blue-800">
+                <CurrentUserName showLabel />
               </div>
 
               <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[10px] font-semibold text-amber-700">
@@ -254,8 +277,7 @@ export default async function Home() {
 
           <div className="mx-auto max-w-[1600px] space-y-6 p-4 sm:p-7">
 
-            {/* اختبار اتصال Clerk مع Convex */}
-            {/* تهيئة المدير المركزي */}
+            <AdminConnectionStatus />
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-slate-800">

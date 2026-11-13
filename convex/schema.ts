@@ -130,6 +130,8 @@ export default defineSchema({
   invitations: defineTable({
     email: v.string(),
     fullName: v.string(),
+    roleId: v.optional(v.id("roles")),
+    stationIds: v.optional(v.array(v.id("stations"))),
 
     status: v.union(
       v.literal("inviting"),
@@ -171,4 +173,24 @@ export default defineSchema({
   })
     .index("by_eventId", ["eventId"])
     .index("by_eventType", ["eventType"]),
+
+  // 11. Station-scoped production and operations records
+  productionRecords: defineTable({
+    stationId: v.id("stations"),
+    productionAt: v.number(),
+    customerName: v.string(),
+    projectName: v.string(),
+    jobNo: v.string(),
+    concreteGrade: v.string(),
+    quantity: v.number(),
+    operatorName: v.string(),
+    notes: v.optional(v.string()),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_station_time", ["stationId", "productionAt"])
+    .index("by_station_job", ["stationId", "jobNo"]),
+
 });

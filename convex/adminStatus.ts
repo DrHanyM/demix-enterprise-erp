@@ -10,6 +10,13 @@ export const verifyCentralAdmin = query({
       throw new Error("يجب تسجيل الدخول أولاً.");
     }
 
+    // This diagnostic is only for the explicitly approved central administrator.
+    // Station operators and other users must not see central-admin bootstrap warnings.
+    const isApprovedCentralAdmin = identity.subject === "user_3Lg5WNRTzqqhUihdy8EjcLBwuo1";
+    if (!isApprovedCentralAdmin) {
+      return { verified: false, isApprovedCentralAdmin: false };
+    }
+
     // 2. Find the current user
     const user = await ctx.db
       .query("users")
@@ -21,6 +28,7 @@ export const verifyCentralAdmin = query({
     if (!user) {
       return {
         verified: false,
+        isApprovedCentralAdmin: true,
         message: "لم يتم العثور على سجل المستخدم في Convex.",
       };
     }
@@ -67,6 +75,15 @@ export const verifyCentralAdmin = query({
       }
     }
 
+    const expectedPermissionCodes = [
+      "audit.view",
+      "system.stations.manage",
+      "system.users.manage",
+    ];
+    const hasExactPermissions =
+      permissionCodes.length === expectedPermissionCodes.length &&
+      expectedPermissionCodes.every((code, index) => permissionCodes[index] === code);
+
     // 5. Verify bootstrap audit record
     const auditLog = await ctx.db
       .query("auditLogs")
@@ -80,13 +97,14 @@ export const verifyCentralAdmin = query({
 
     // 6. Return verification report
     return {
+      isApprovedCentralAdmin: true,
       verified:
         user.status === "active" &&
         adminRole !== null &&
         adminRole.status === "active" &&
         adminRole.scope === "central" &&
         adminRole.isSystem === true &&
-        permissionCodes.length === 13 &&
+        hasExactPermissions &&
         auditLog !== null,
 
       user: {

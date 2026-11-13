@@ -169,6 +169,73 @@ export const createStation = mutation({
   },
 });
 
+// One-click, idempotent initialization of the six approved company stations.
+export const initializeCompanyStations = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireCentralPermission(ctx, "system.stations.manage");
+
+    const approvedNames = [
+      "أبو رواش",
+      "أبو قير",
+      "القطامية",
+      "الكوامل",
+      "ABC",
+      "رأس الحكمة",
+    ];
+
+    const existingStations = await ctx.db.query("stations").collect();
+    const normalized = (value: string) => value.trim().toLocaleLowerCase();
+    let highestNumber = 0;
+    for (const station of existingStations) {
+      const match = /^ST-(\\d+)$/.exec(station.code);
+      if (match) highestNumber = Math.max(highestNumber, Number(match[1]));
+    }
+
+    const results: Array<{ name: string; code?: string; created: boolean }> = [];
+    for (const name of approvedNames) {
+      const existing = existingStations.find(
+        (station) => normalized(station.name) === normalized(name)
+      );
+      if (existing) {
+        results.push({ name, code: existing.code, created: false });
+        continue;
+      }
+
+      highestNumber += 1;
+      const code = `ST-${String(highestNumber).padStart(3, "0")}`;
+      const stationId = await ctx.db.insert("stations", {
+        code,
+        name,
+        status: "active",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await appendAuditLog(ctx, {
+        stationId,
+        action: STATION_ACTION,
+        entityType: STATION_ENTITY,
+        entityId: stationId,
+        operationId: `company-stations-initialization-v1-${code}`,
+        details: {
+          stationCode: code,
+          stationName: name,
+          status: "active",
+          source: "COMPANY_STATIONS_INITIALIZATION",
+        },
+      });
+      results.push({ name, code, created: true });
+    }
+
+    return {
+      success: true,
+      createdCount: results.filter((item) => item.created).length,
+      existingCount: results.filter((item) => !item.created).length,
+      stations: results,
+    };
+  },
+});
+
 // 2. List stations for authorized central administrators.
 export const listStations = query({
   args: {},

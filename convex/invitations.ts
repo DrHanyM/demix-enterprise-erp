@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { requireCentralPermission } from "./lib/auth";
 import { appendAuditLog } from "./lib/audit";
 
@@ -7,10 +7,77 @@ import { appendAuditLog } from "./lib/audit";
 // إنشاء سجل دعوة مبدئي
 // ======================================================
 
+
+const PRODUCTION_ROLE_CODE = "STATION_PRODUCTION_OPERATOR";
+const PRODUCTION_PERMISSIONS = [
+  ["production.records.read", "View production records", "production", "read"],
+  ["production.records.create", "Create production records", "production", "create"],
+  ["production.records.update", "Update production records", "production", "update"],
+] as const;
+
+async function ensureProductionRole(ctx: MutationCtx) {
+  const now = Date.now();
+  let role = await ctx.db.query("roles")
+    .withIndex("by_code", (q) => q.eq("code", PRODUCTION_ROLE_CODE))
+    .unique();
+
+  if (!role) {
+    const roleId = await ctx.db.insert("roles", {
+      code: PRODUCTION_ROLE_CODE,
+      name: "Station Production Operator",
+      description: "Can read, create and update production records only at assigned stations.",
+      scope: "station",
+      status: "active",
+      isSystem: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    role = await ctx.db.get(roleId);
+  }
+  if (!role || role.scope !== "station" || role.status !== "active") {
+    throw new Error("PRODUCTION_ROLE_CONFIGURATION_INVALID");
+  }
+
+  for (const [code, name, module, action] of PRODUCTION_PERMISSIONS) {
+    let permission = await ctx.db.query("permissions")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .unique();
+    if (!permission) {
+      const permissionId = await ctx.db.insert("permissions", {
+        code, name, module, action,
+        description: "Station-scoped production permission.",
+        createdAt: now,
+      });
+      permission = await ctx.db.get(permissionId);
+    }
+    if (!permission) throw new Error("PRODUCTION_PERMISSION_CONFIGURATION_INVALID");
+    const link = await ctx.db.query("rolePermissions")
+      .withIndex("by_role_permission", (q) =>
+        q.eq("roleId", role._id).eq("permissionId", permission._id))
+      .unique();
+    if (!link) {
+      await ctx.db.insert("rolePermissions", {
+        roleId: role._id,
+        permissionId: permission._id,
+        assignedAt: now,
+      });
+    }
+  }
+  const allRoleLinks = await ctx.db.query("rolePermissions")
+    .withIndex("by_role", (q) => q.eq("roleId", role._id))
+    .collect();
+  const expectedCodes = new Set(PRODUCTION_PERMISSIONS.map(([code]) => code));
+  if (allRoleLinks.length !== expectedCodes.size) {
+    throw new Error("PRODUCTION_ROLE_PERMISSION_SET_INVALID");
+  }
+  return role;
+}
+
 export const createInvitationDraft = mutation({
   args: {
     email: v.string(),
     fullName: v.string(),
+    stationIds: v.array(v.id("stations")),
     operationId: v.string(),
   },
 
@@ -23,6 +90,15 @@ export const createInvitationDraft = mutation({
     const email = args.email.trim().toLowerCase();
     const fullName = args.fullName.trim();
     const operationId = args.operationId.trim();
+    const stationIds = [...new Set(args.stationIds)];
+    if (stationIds.length < 1 || stationIds.length > 10 || stationIds.length !== args.stationIds.length) {
+      throw new Error("INVALID_STATION_ASSIGNMENTS");
+    }
+    const role = await ensureProductionRole(ctx);
+    for (const stationId of stationIds) {
+      const station = await ctx.db.get(stationId);
+      if (!station || station.status !== "active") throw new Error("INVITATION_STATION_INACTIVE");
+    }
 
     // التحقق من البريد الإلكتروني
     if (
@@ -61,7 +137,9 @@ export const createInvitationDraft = mutation({
       if (
         previous.email !== email ||
         previous.fullName !== fullName ||
-        previous.createdBy !== user._id
+        previous.createdBy !== user._id ||
+        previous.roleId !== role._id ||
+        JSON.stringify(previous.stationIds ?? []) !== JSON.stringify(stationIds)
       ) {
         throw new Error("OPERATION_ID_CONFLICT");
       }
@@ -113,6 +191,8 @@ export const createInvitationDraft = mutation({
     const invitationId = await ctx.db.insert("invitations", {
       email,
       fullName,
+      roleId: role._id,
+      stationIds,
       status: "inviting",
       createdBy: user._id,
       operationId,
@@ -129,6 +209,8 @@ export const createInvitationDraft = mutation({
       details: {
         email,
         fullName,
+        roleCode: PRODUCTION_ROLE_CODE,
+        stationIds,
         status: "inviting",
       },
     });
@@ -164,6 +246,8 @@ export const listInvitations = query({
         id: invitation._id,
         email: invitation.email,
         fullName: invitation.fullName,
+        roleId: invitation.roleId,
+        stationIds: invitation.stationIds,
         status: invitation.status,
         clerkInvitationId: invitation.clerkInvitationId,
         expiresAt: invitation.expiresAt,
@@ -211,6 +295,8 @@ export const getInvitationForSending = query({
       id: invitation._id,
       email: invitation.email,
       fullName: invitation.fullName,
+      roleId: invitation.roleId,
+      stationIds: invitation.stationIds,
       status: invitation.status,
     };
   },
@@ -388,7 +474,6 @@ export const acceptInvitationFromClerk = internalMutation({
     eventId: v.string(),
     eventType: v.string(),
     clerkUserId: v.string(),
-    invitationId: v.id("invitations"),
     email: v.string(),
     emailVerified: v.boolean(),
   },
@@ -441,17 +526,69 @@ export const acceptInvitationFromClerk = internalMutation({
       };
     }
 
-    const invitation = await ctx.db.get(args.invitationId);
-
-    if (!invitation) {
-      throw new Error("INVITATION_NOT_FOUND");
-    }
-
-    if (invitation.email.toLowerCase() !== email) {
-      throw new Error("INVITATION_EMAIL_MISMATCH");
-    }
-
     const now = Date.now();
+
+    // Resolve the ERP invitation using the verified primary email from Clerk.
+    // Do not rely on custom Clerk public metadata being populated on acceptance.
+    const emailInvitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .collect();
+
+    const matchingInvitations = emailInvitations.filter(
+      (item) =>
+        (item.status === "invited" || item.status === "accepted") &&
+        typeof item.clerkInvitationId === "string" &&
+        item.clerkInvitationId.length > 0
+    );
+
+    const eligibleInvitations = matchingInvitations.filter(
+      (item) =>
+        item.status === "invited" &&
+        (!item.expiresAt || item.expiresAt > now)
+    );
+
+    const acceptedInvitations = matchingInvitations.filter(
+      (item) => item.status === "accepted"
+    );
+
+    if (eligibleInvitations.length > 1) {
+      throw new Error("AMBIGUOUS_ACTIVE_INVITATIONS");
+    }
+
+    let invitation;
+
+    if (eligibleInvitations.length === 1) {
+      invitation = eligibleInvitations[0];
+    } else if (acceptedInvitations.length === 1) {
+      invitation = acceptedInvitations[0];
+    } else if (acceptedInvitations.length > 1) {
+      throw new Error("AMBIGUOUS_ACCEPTED_INVITATIONS");
+    } else if (matchingInvitations.length > 0) {
+      for (const expired of matchingInvitations) {
+        if (expired.status === "invited") {
+          await ctx.db.patch(expired._id, {
+            status: "expired",
+            updatedAt: now,
+          });
+        }
+      }
+
+      await ctx.db.insert("webhookEvents", {
+        eventId,
+        eventType: args.eventType,
+        processedAt: now,
+        createdAt: now,
+      });
+
+      return {
+        success: false,
+        duplicate: false,
+        status: "invitation_expired" as const,
+      };
+    } else {
+      throw new Error("NO_MATCHING_ACTIVE_ERP_INVITATION");
+    }
 
     // Idempotent acceptance for the same Clerk account.
     if (invitation.status === "accepted") {
@@ -469,19 +606,10 @@ export const acceptInvitationFromClerk = internalMutation({
         throw new Error("INVITATION_ALREADY_ACCEPTED_BY_ANOTHER_USER");
       }
 
-      await ctx.db.insert("webhookEvents", {
-        eventId,
-        eventType: args.eventType,
-        processedAt: now,
-        createdAt: now,
-      });
-
-      return {
-        success: true,
-        duplicate: false,
-        status: "already_accepted" as const,
-        userId: acceptedUser._id,
-      };
+      // Do not stop at an accepted invitation if station provisioning is
+      // incomplete. Re-run the idempotent assignment checks below so missing
+      // role/station links and audit records can be repaired on a later event.
+      invitation = { ...invitation, status: "invited" as const };
     }
 
     if (invitation.status !== "invited") {
@@ -520,30 +648,98 @@ export const acceptInvitationFromClerk = internalMutation({
       throw new Error("DUPLICATE_CLERK_IDENTITY");
     }
 
-    if (usersBySubject.length === 1) {
-      throw new Error("CLERK_IDENTITY_ALREADY_REGISTERED");
-    }
-
-    // Prevent another account from using the invited email.
+    // A user record may already have been created by an earlier sign-in
+    // synchronization before invitation provisioning completed. Reuse that
+    // exact Clerk identity so a verified webhook retry can finish setup.
     const usersByEmail = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", email))
       .take(2);
 
-    if (usersByEmail.length > 0) {
-      throw new Error("INVITATION_EMAIL_ALREADY_REGISTERED");
+    if (usersByEmail.length > 1) {
+      throw new Error("DUPLICATE_INVITATION_EMAIL_USERS");
     }
 
-    // Create the active user only after all checks pass.
-    const userId = await ctx.db.insert("users", {
-      authSubject: clerkUserId,
-      email,
-      fullName: invitation.fullName,
-      status: "active",
-      createdAt: now,
-      updatedAt: now,
-      createdBy: "CLERK_WEBHOOK",
-    });
+    let userId;
+    if (usersBySubject.length === 1) {
+      const existingUser = usersBySubject[0];
+      if (existingUser.email.toLowerCase() !== email) {
+        throw new Error("CLERK_IDENTITY_EMAIL_MISMATCH");
+      }
+      if (existingUser.status !== "active") {
+        throw new Error("EXISTING_CLERK_USER_NOT_ACTIVE");
+      }
+      userId = existingUser._id;
+    } else {
+      if (usersByEmail.length > 0) {
+        throw new Error("INVITATION_EMAIL_ALREADY_REGISTERED");
+      }
+
+      // Create the active user only after all checks pass.
+      userId = await ctx.db.insert("users", {
+        authSubject: clerkUserId,
+        email,
+        fullName: invitation.fullName,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+        createdBy: "CLERK_WEBHOOK",
+      });
+    }
+
+    // Apply the invitation's approved station-scoped role atomically with account activation.
+    if (!invitation.roleId || !invitation.stationIds?.length) {
+      throw new Error("INVITATION_ROLE_OR_STATIONS_MISSING");
+    }
+    const assignedRole = await ctx.db.get(invitation.roleId);
+    if (!assignedRole || assignedRole.status !== "active" || assignedRole.scope !== "station" || assignedRole.code !== PRODUCTION_ROLE_CODE) {
+      throw new Error("INVITATION_ROLE_INVALID");
+    }
+    const rolePermissionCodes = new Set<string>();
+    const roleLinks = await ctx.db.query("rolePermissions")
+      .withIndex("by_role", (q) => q.eq("roleId", assignedRole._id)).collect();
+    for (const link of roleLinks) {
+      const permission = await ctx.db.get(link.permissionId);
+      if (permission) rolePermissionCodes.add(permission.code);
+    }
+    for (const [code] of PRODUCTION_PERMISSIONS) {
+      if (!rolePermissionCodes.has(code)) throw new Error("INVITATION_ROLE_PERMISSION_MISSING");
+    }
+    const uniqueStationIds = [...new Set(invitation.stationIds)];
+    if (uniqueStationIds.length !== invitation.stationIds.length) throw new Error("DUPLICATE_INVITATION_STATIONS");
+    for (const stationId of uniqueStationIds) {
+      const station = await ctx.db.get(stationId);
+      if (!station || station.status !== "active") throw new Error("INVITATION_STATION_INACTIVE");
+      const existingAssignment = await ctx.db.query("userStations")
+        .withIndex("by_user_station", (q) => q.eq("userId", userId).eq("stationId", stationId))
+        .first();
+      if (!existingAssignment) {
+        await ctx.db.insert("userStations", {
+          userId,
+          stationId,
+          roleId: assignedRole._id,
+          status: "active",
+          assignedAt: now,
+          assignedBy: "CLERK_WEBHOOK",
+        });
+      } else if (existingAssignment.roleId !== assignedRole._id || existingAssignment.status !== "active") {
+        throw new Error("USER_STATION_ASSIGNMENT_CONFLICT");
+      }
+      await ctx.db.insert("auditLogs", {
+        stationId,
+        action: "user.station_role.assigned",
+        entityType: "userStation",
+        entityId: userId,
+        operationId: `clerk-user-station-role-${eventId}-${stationId}`,
+        details: {
+          source: "CLERK_WEBHOOK",
+          userId,
+          roleCode: PRODUCTION_ROLE_CODE,
+          stationId,
+        },
+        createdAt: now,
+      });
+    }
 
     // Link the accepted invitation to the new user.
     await ctx.db.patch(invitation._id, {
