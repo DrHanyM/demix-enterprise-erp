@@ -89,6 +89,15 @@ function saveFile(filename: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+function SourceSelect({ label, value, onChange, values }: { label: string; value: string; onChange: (value: string) => void; values: string[] }) {
+  return <label className="text-xs text-slate-600">{label}
+    <select className="mt-1 block w-full rounded-lg border p-2 text-sm" value={value} onChange={(event) => onChange(event.target.value)}>
+      <option value="">الكل</option>
+      {values.map((item) => <option key={item}>{item}</option>)}
+    </select>
+  </label>;
+}
+
 export default function ProductionAnalysisPage() {
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
@@ -102,6 +111,22 @@ export default function ProductionAnalysisPage() {
   const [driver, setDriver] = useState("");
   const [job, setJob] = useState("");
   const [state, setState] = useState("");
+  const [pump, setPump] = useState("");
+  const [location, setLocation] = useState("");
+  const [siteNo, setSiteNo] = useState("");
+  const [contract, setContract] = useState("");
+  const [techReq, setTechReq] = useState("");
+  const [deliveryMode, setDeliveryMode] = useState("");
+  const [productionLine, setProductionLine] = useState("");
+  const [operator, setOperator] = useState("");
+  const [truckVolume, setTruckVolume] = useState("");
+  const [slump, setSlump] = useState("");
+  const [kangShen, setKangShen] = useState("");
+  const [readState, setReadState] = useState("");
+  const [attenderCode, setAttenderCode] = useState("");
+  const [constUnit, setConstUnit] = useState("");
+  const [saJiangSymbol, setSaJiangSymbol] = useState("");
+  const [notes, setNotes] = useState("");
   const [search, setSearch] = useState("");
 
   const invalid = Boolean(from && to && from > to);
@@ -117,7 +142,6 @@ export default function ProductionAnalysisPage() {
     jobNo: job || undefined,
     concreteGrade: mix || undefined,
     truckNo: mixer || undefined,
-    driverName: driver || undefined,
     operationState: state || undefined,
   };
   const { results, status, loadMore } = usePaginatedQuery(api.operations.listImportedProductionPage, args, { initialNumItems: 500 });
@@ -128,15 +152,30 @@ export default function ProductionAnalysisPage() {
     projects: [...new Set(rows.map((r) => r.projectName).filter(Boolean) as string[])].sort(),
     mixes: [...new Set(rows.map((r) => r.concreteGrade).filter(Boolean) as string[])].sort(),
     mixers: [...new Set(rows.map((r) => show(r.truckNo ?? raw(r, "Truck_No"))).filter((x) => x !== "—"))].sort(),
-    drivers: [...new Set(rows.map((r) => show(r.driverName ?? r.operatorName ?? raw(r, "Driver"))).filter((x) => x !== "—"))].sort(),
+    drivers: [...new Set(rows.map((r) => show(r.driverName ?? raw(r, "Driver"))).filter((x) => x !== "—"))].sort(),
     jobs: [...new Set(rows.map((r) => show(r.jobNo ?? raw(r, "Job_No"))).filter((x) => x !== "—"))].sort(),
     states: [...new Set(rows.map((r) => show(r.operationState ?? raw(r, "OperationState"))).filter((x) => x !== "—"))].sort(),
+    pumps: [...new Set(rows.map((r) => show(raw(r, "Prop_No"))).filter((x) => x !== "—"))].sort(),
+    locations: [...new Set(rows.map((r) => show(raw(r, "Location"))).filter((x) => x !== "—"))].sort(),
+    siteNos: [...new Set(rows.map((r) => show(raw(r, "Site_No"))).filter((x) => x !== "—"))].sort(),
+    contracts: [...new Set(rows.map((r) => show(raw(r, "Contr_No"))).filter((x) => x !== "—"))].sort(),
+    techReqs: [...new Set(rows.map((r) => show(raw(r, "Tech_Req"))).filter((x) => x !== "—"))].sort(),
+    deliveryModes: [...new Set(rows.map((r) => show(raw(r, "Delivery_Mode"))).filter((x) => x !== "—"))].sort(),
+    productionLines: [...new Set(rows.map((r) => show(raw(r, "ProduceLine"))).filter((x) => x !== "—"))].sort(),
+    operators: [...new Set(rows.map((r) => show(raw(r, "Operator"))).filter((x) => x !== "—"))].sort(),
+    truckVolumes: [...new Set(rows.map((r) => show(raw(r, "Truck_vol"))).filter((x) => x !== "—"))].sort(),
+    slumps: [...new Set(rows.map((r) => show(raw(r, "TaLuoDu"))).filter((x) => x !== "—"))].sort(),
+    kangShenLevels: [...new Set(rows.map((r) => show(raw(r, "KangShenLevel"))).filter((x) => x !== "—"))].sort(),
+    readStates: [...new Set(rows.map((r) => show(raw(r, "ReadState"))).filter((x) => x !== "—"))].sort(),
+    attenderCodes: [...new Set(rows.map((r) => show(raw(r, "AttemperCode"))).filter((x) => x !== "—"))].sort(),
+    constUnits: [...new Set(rows.map((r) => show(raw(r, "Const_Unit"))).filter((x) => x !== "—"))].sort(),
+    saJiangSymbols: [...new Set(rows.map((r) => show(raw(r, "SaJiangSymbol"))).filter((x) => x !== "—"))].sort(),
   }), [rows]);
 
   const filtered = useMemo(() => rows.filter((row) => {
     const date = new Date(row.productionAt);
     const time = String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
-    const driverValue = row.driverName ?? row.operatorName ?? raw(row, "Driver");
+    const driverValue = row.driverName ?? raw(row, "Driver");
     return (!fromTime || time >= fromTime)
       && (!toTime || time <= toTime)
       && (!customer || norm(row.customerName) === norm(customer))
@@ -146,8 +185,24 @@ export default function ProductionAnalysisPage() {
       && (!driver || norm(driverValue) === norm(driver))
       && (!job || norm(row.jobNo ?? raw(row, "Job_No")) === norm(job))
       && (!state || norm(row.operationState ?? raw(row, "OperationState")) === norm(state))
-      && (!search || [row.sourceRecordId, row.jobNo, row.customerName, row.projectName, row.concreteGrade, row.truckNo, driverValue, row.operatorName].some((value) => norm(value).includes(norm(search))));
-  }), [rows, fromTime, toTime, customer, project, mix, mixer, driver, job, state, search]);
+      && (!pump || norm(raw(row, "Prop_No")) === norm(pump))
+      && (!location || norm(raw(row, "Location")) === norm(location))
+      && (!siteNo || norm(raw(row, "Site_No")) === norm(siteNo))
+      && (!contract || norm(raw(row, "Contr_No")) === norm(contract))
+      && (!techReq || norm(raw(row, "Tech_Req")) === norm(techReq))
+      && (!deliveryMode || norm(raw(row, "Delivery_Mode")) === norm(deliveryMode))
+      && (!productionLine || norm(raw(row, "ProduceLine")) === norm(productionLine))
+      && (!operator || norm(raw(row, "Operator")) === norm(operator))
+      && (!truckVolume || norm(raw(row, "Truck_vol")) === norm(truckVolume))
+      && (!slump || norm(raw(row, "TaLuoDu")) === norm(slump))
+      && (!kangShen || norm(raw(row, "KangShenLevel")) === norm(kangShen))
+      && (!readState || norm(raw(row, "ReadState")) === norm(readState))
+      && (!attenderCode || norm(raw(row, "AttemperCode")) === norm(attenderCode))
+      && (!constUnit || norm(raw(row, "Const_Unit")) === norm(constUnit))
+      && (!saJiangSymbol || norm(raw(row, "SaJiangSymbol")) === norm(saJiangSymbol))
+      && (!notes || [raw(row, "Remark"), raw(row, "RecordRemark"), raw(row, "SynchRemark")].some((value) => norm(value).includes(norm(notes))))
+      && (!search || [row.sourceRecordId, row.jobNo, row.customerName, row.projectName, row.concreteGrade, row.truckNo, driverValue, row.operatorName, raw(row, "Prop_No"), raw(row, "Location"), raw(row, "Site_No")].some((value) => norm(value).includes(norm(search))));
+  }), [rows, fromTime, toTime, customer, project, mix, mixer, driver, job, state, pump, location, siteNo, contract, techReq, deliveryMode, productionLine, operator, truckVolume, slump, kangShen, readState, attenderCode, constUnit, saJiangSymbol, notes, search]);
 
   const total = filtered.reduce((sum, row) => sum + (row.quantity ?? 0), 0);
   const todayTotal = filtered.filter((row) => dayOf(row.productionAt) === today()).reduce((sum, row) => sum + (row.quantity ?? 0), 0);
@@ -168,7 +223,9 @@ export default function ProductionAnalysisPage() {
   const exhausted = status === "Exhausted";
   const reset = () => {
     setFrom(""); setTo(""); setFromTime(""); setToTime(""); setStationId("");
-    setCustomer(""); setProject(""); setMix(""); setMixer(""); setDriver(""); setJob(""); setState(""); setSearch("");
+    setCustomer(""); setProject(""); setMix(""); setMixer(""); setDriver(""); setJob(""); setState("");
+    setPump(""); setLocation(""); setSiteNo(""); setContract(""); setTechReq(""); setDeliveryMode(""); setProductionLine("");
+    setOperator(""); setTruckVolume(""); setSlump(""); setKangShen(""); setReadState(""); setAttenderCode(""); setConstUnit(""); setSaJiangSymbol(""); setNotes(""); setSearch("");
   };
 
   const exportCsv = () => {
