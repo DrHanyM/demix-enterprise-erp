@@ -114,6 +114,79 @@ def validate_all_rows(source_path,profile):
         if connection is not None: connection.close()
         shutil.rmtree(folder,ignore_errors=True)
 
+def _js_length(value):
+    return len(str(value).encode("utf-16-le"))//2
+
+def validate_server_rows(source_path,profile):
+    """Preflight all records against the Convex HTTP/schema contract and batch limits; no queue or network."""
+    try: import pyodbc
+    except ImportError as exc: raise RuntimeError("pyodbc missing; rerun INSTALL.ps1") from exc
+    folder,snapshot,digest=snapshot_database(source_path); connection=None
+    valid=0; invalid=0; errors={}; total=0
+    batch_count=0; current_records=[]; current_bytes=0; max_batch_bytes=0; largest_record_bytes=0
+    max_batch_bytes_limit=int(profile.get("maxBatchBytes",180000))
+    station=profile["stationCode"]; machine=profile["machineId"]
+    def envelope_size(records):
+        envelope={"stationCode":station,"machineId":machine,"batchId":"0"*64,"records":records}
+        return len(json.dumps(envelope,ensure_ascii=False,separators=(",",":"),allow_nan=False).encode("utf-8"))
+    def finish_batch():
+        nonlocal batch_count,max_batch_bytes,current_records,current_bytes
+        if current_records:
+            batch_count+=1
+            max_batch_bytes=max(max_batch_bytes,current_bytes)
+            current_records=[]; current_bytes=0
+    try:
+        driver=profile["odbcDriver"]
+        connection=pyodbc.connect(f"DRIVER={{{driver}}};DBQ={snapshot};ReadOnly=1;",readonly=True,timeout=15)
+        cursor=connection.cursor()
+        cursor.execute("SELECT * FROM "+quote_identifier(profile["table"]))
+        names=[c[0] for c in cursor.description]
+        for values in iter(lambda: cursor.fetchmany(500), []):
+            for source_row in values:
+                total+=1
+                try:
+                    record=map_row(dict(zip(names,source_row)),profile["columns"],profile.get("timezone","Africa/Cairo"))
+                    problems=[]
+                    if not record["sourceRecordId"].strip() or _js_length(record["sourceRecordId"])>160: problems.append("INVALID_SOURCE_RECORD_ID")
+                    if not record["sourceHash"].strip() or _js_length(record["sourceHash"])>128: problems.append("INVALID_SOURCE_HASH")
+                    if not isinstance(record["productionAt"],(int,float)) or not __import__("math").isfinite(record["productionAt"]) or record["productionAt"]<=0: problems.append("INVALID_PRODUCTION_TIMESTAMP")
+                    q=record.get("quantity")
+                    if q is not None and (not __import__("math").isfinite(q) or q<0 or q>100000): problems.append("INVALID_PRODUCTION_QUANTITY")
+                    for key in ("customerName","projectName","jobNo","concreteGrade","operatorName","truckNumber","driverName"):
+                        if key in record and _js_length(record[key])>300: problems.append("SOURCE_FIELD_TOO_LONG:"+key)
+                    state=record.get("operationState")
+                    if state is not None and not __import__("math").isfinite(state): problems.append("INVALID_OPERATION_STATE")
+                    raw=record.get("rawSourceData")
+                    if raw is not None and (not isinstance(raw,dict)): problems.append("INVALID_RAW_SOURCE_DATA")
+                    encoded=json.dumps(record,ensure_ascii=False,separators=(",",":"),allow_nan=False).encode("utf-8")
+                    single_size=envelope_size([record])
+                    largest_record_bytes=max(largest_record_bytes,single_size)
+                    if single_size>max_batch_bytes_limit: problems.append("SINGLE_RECORD_EXCEEDS_BATCH_BYTE_LIMIT")
+                    if problems:
+                        invalid+=1
+                        for problem in problems: errors[problem]=errors.get(problem,0)+1
+                        continue
+                    valid+=1
+                    candidate=current_records+[record]
+                    candidate_size=envelope_size(candidate)
+                    if current_records and (len(candidate)>100 or candidate_size>max_batch_bytes_limit):
+                        finish_batch()
+                        candidate=[record]; candidate_size=single_size
+                    current_records=candidate; current_bytes=candidate_size
+                except Exception as exc:
+                    invalid+=1
+                    key=type(exc).__name__+": "+str(exc)
+                    errors[key]=errors.get(key,0)+1
+        finish_batch()
+        return {"mode":"validate_server_contract","read":total,"valid":valid,"invalid":invalid,
+                "validationErrors":errors,"estimatedBatches":batch_count,
+                "maxBatchBytesObserved":max_batch_bytes,"largestSingleRecordEnvelopeBytes":largest_record_bytes,
+                "batchByteLimit":max_batch_bytes_limit,"serverBodyCharacterLimit":256000,
+                "sourceSha256":digest,"queueWritten":False,"sent":0}
+    finally:
+        if connection is not None: connection.close()
+        shutil.rmtree(folder,ignore_errors=True)
+
 def epoch_ms(value,timezone_name="Africa/Cairo"):
     from zoneinfo import ZoneInfo
     if value is None: raise ValueError("Production timestamp is empty")
@@ -224,8 +297,10 @@ def send_pending(db,profile):
             logging.exception("Send failed; records retained for retry"); break
     return sent
 
-def run_once(validate_only=False,limit=None,validate_all=False):
+def run_once(validate_only=False,limit=None,validate_all=False,validate_server=False):
     setup_logging(); source=load_config(); profile=load_profile()
+    if validate_server:
+        return validate_server_rows(source,profile)
     if validate_all:
         return validate_all_rows(source,profile)
     if validate_only and limit is None:
@@ -258,11 +333,16 @@ if __name__=="__main__":
                         help="Required with --validate-only; number of source rows to inspect (1..1000).")
     parser.add_argument("--validate-all",action="store_true",
                         help="Validate every source row in bounded memory without queue writes or network sends.")
+    parser.add_argument("--validate-server-contract",action="store_true",
+                        help="Preflight every row against server validators and estimate safe batch sizes; no queue or network.")
     args=parser.parse_args()
+    if args.validate_server_contract and (args.validate_only or args.validate_all or args.limit is not None):
+        parser.error("--validate-server-contract cannot be combined with other validation flags.")
     if args.validate_all and (args.validate_only or args.limit is not None):
         parser.error("--validate-all cannot be combined with --validate-only or --limit.")
     try:
         print(json.dumps(run_once(validate_only=args.validate_only,limit=args.limit,
-                                  validate_all=args.validate_all),ensure_ascii=False))
+                                  validate_all=args.validate_all,
+                                  validate_server=args.validate_server_contract),ensure_ascii=False))
     except Exception:
         setup_logging(); logging.exception("Sync cycle failed"); raise
