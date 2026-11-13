@@ -1,0 +1,58 @@
+name: Deploy Convex Preview (Station Sync)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_preview:
+        description: "Explicitly confirm deployment to Convex Preview only"
+        required: true
+        type: choice
+        options:
+          - "No - cancel"
+          - "DEPLOY PREVIEW"
+        default: "No - cancel"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: convex-preview-station-sync
+  cancel-in-progress: false
+
+jobs:
+  deploy-preview:
+    if: >-
+      github.ref == 'refs/heads/codex/station-transfer-preserve-source' &&
+      inputs.confirm_preview == 'DEPLOY PREVIEW'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the isolated station-transfer branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/station-transfer-preserve-source
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Require a Preview-only Convex deploy key
+        shell: bash
+        env:
+          PREVIEW_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
+        run: |
+          if [[ -z "$PREVIEW_DEPLOY_KEY" ]]; then
+            echo "::error::Repository secret CONVEX_PREVIEW_DEPLOY_KEY is missing. Add a Convex Preview deployment key; never use a Production key."
+            exit 1
+          fi
+
+      - name: Deploy Convex functions and schema to the Preview deployment
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
+        run: npx convex deploy --yes
