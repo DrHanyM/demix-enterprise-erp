@@ -14,6 +14,8 @@ const REQUIRED_PERMISSIONS = [
   "inventory.view",
   "inventory.manage",
   "reports.view",
+  "equipment.view",
+  "operations.reports.view",
   "hr.structure.manage",
   "hr.employees.manage",
 ] as const;
