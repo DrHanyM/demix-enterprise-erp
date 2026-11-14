@@ -55,7 +55,7 @@ function materialSummary(rows: Row[]) {
   ];
 
   return groups.map((group) => {
-    const slots = new Map<string, { name: string; expected: number; actual: number }>();
+    const slots = new Map<string, { name: string; expected: number; actual: number; jdz: number; xdz: number; hsl: number; hgl: number }>();
     for (const row of rows) {
       for (const key of group.keys) {
         const name = show(raw(row, "NAM_" + key));
