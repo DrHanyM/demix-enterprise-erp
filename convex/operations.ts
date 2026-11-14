@@ -277,6 +277,28 @@ export const listImportedProductionPage = query({
     stationId: v.optional(v.id("stations")),
     fromAt: v.optional(v.number()),
     toAt: v.optional(v.number()),
+    customer: v.optional(v.string()),
+    project: v.optional(v.string()),
+    mix: v.optional(v.string()),
+    mixer: v.optional(v.string()),
+    driver: v.optional(v.string()),
+    job: v.optional(v.string()),
+    state: v.optional(v.string()),
+    pump: v.optional(v.string()),
+    location: v.optional(v.string()),
+    siteNo: v.optional(v.string()),
+    contract: v.optional(v.string()),
+    techReq: v.optional(v.string()),
+    deliveryMode: v.optional(v.string()),
+    productionLine: v.optional(v.string()),
+    operator: v.optional(v.string()),
+    truckVolume: v.optional(v.string()),
+    slump: v.optional(v.string()),
+    kangShen: v.optional(v.string()),
+    readState: v.optional(v.string()),
+    attenderCode: v.optional(v.string()),
+    constUnit: v.optional(v.string()),
+    saJiangSymbol: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
@@ -289,7 +311,31 @@ export const listImportedProductionPage = query({
           q.eq("stationId", args.stationId!).gte("productionAt", fromAt).lte("productionAt", toAt))
       : ctx.db.query("stationProductionImports").withIndex("by_productionAt", q =>
           q.gte("productionAt", fromAt).lte("productionAt", toAt));
-    const page = await base.order("desc").paginate(args.paginationOpts);
+    const filtered = base.filter(q => q.and(
+      (!args.customer || q.or(q.eq(q.field("customerName"), args.customer), q.eq(q.field("rawSourceData.CUST_NM"), args.customer))) &&
+      (!args.project || q.or(q.eq(q.field("projectName"), args.project), q.eq(q.field("rawSourceData.PROJ_NM"), args.project))) &&
+      (!args.mix || q.or(q.eq(q.field("concreteGrade"), args.mix), q.eq(q.field("rawSourceData.Strength"), args.mix))) &&
+      (!args.mixer || q.or(q.eq(q.field("truckNo"), args.mixer), q.eq(q.field("rawSourceData.Truck_No"), args.mixer))) &&
+      (!args.driver || q.or(q.eq(q.field("driverName"), args.driver), q.eq(q.field("rawSourceData.Driver"), args.driver))) &&
+      (!args.job || q.or(q.eq(q.field("jobNo"), args.job), q.eq(q.field("rawSourceData.Job_No"), args.job))) &&
+      (!args.state || q.or(q.eq(q.field("operationState"), args.state), q.eq(q.field("rawSourceData.OperationState"), args.state))) &&
+      (!args.pump || q.eq(q.field("rawSourceData.Prop_No"), args.pump)) &&
+      (!args.location || q.eq(q.field("rawSourceData.Location"), args.location)) &&
+      (!args.siteNo || q.eq(q.field("rawSourceData.Site_No"), args.siteNo)) &&
+      (!args.contract || q.eq(q.field("rawSourceData.Contr_No"), args.contract)) &&
+      (!args.techReq || q.eq(q.field("rawSourceData.Tech_Req"), args.techReq)) &&
+      (!args.deliveryMode || q.eq(q.field("rawSourceData.Delivery_Mode"), args.deliveryMode)) &&
+      (!args.productionLine || q.eq(q.field("rawSourceData.ProduceLine"), args.productionLine)) &&
+      (!args.operator || q.or(q.eq(q.field("operatorName"), args.operator), q.eq(q.field("rawSourceData.Operator"), args.operator))) &&
+      (!args.truckVolume || q.eq(q.field("rawSourceData.Truck_vol"), args.truckVolume)) &&
+      (!args.slump || q.eq(q.field("rawSourceData.TaLuoDu"), args.slump)) &&
+      (!args.kangShen || q.eq(q.field("rawSourceData.KangShenLevel"), args.kangShen)) &&
+      (!args.readState || q.eq(q.field("rawSourceData.ReadState"), args.readState)) &&
+      (!args.attenderCode || q.eq(q.field("rawSourceData.AttemperCode"), args.attenderCode)) &&
+      (!args.constUnit || q.eq(q.field("rawSourceData.Const_Unit"), args.constUnit)) &&
+      (!args.saJiangSymbol || q.eq(q.field("rawSourceData.SaJiangSymbol"), args.saJiangSymbol))
+    ));
+    const page = await filtered.order("desc").paginate(args.paginationOpts);
     const stations = await ctx.db.query("stations").collect();
     const names = new Map(stations.map(station => [station._id, { name: station.name, code: station.code }]));
     return { ...page, page: page.page.map(record => ({ ...record, station: names.get(record.stationId) ?? null })) };
