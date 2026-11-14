@@ -69,7 +69,9 @@ function materialSummary(rows: Row[]) {
         if (group.id === "unknown" && (isSand || isAggregate)) continue;
 
         const label = key === "WJA1" ? "Admix1" : key === "WJA2" ? "Admix2" : name === "—" ? key : name;
-        const value = slots.get(key) ?? { name: label, expected: 0, actual: 0, jdz: 0, xdz: 0, hsl: 0, hgl: 0 };
+        // Keep distinct material names separate even when they use the same source slot.
+        const slotKey = key + "::" + norm(name === "—" ? key : name);
+        const value = slots.get(slotKey) ?? { name: label, expected: 0, actual: 0, jdz: 0, xdz: 0, hsl: 0, hgl: 0 };
         value.expected += num(raw(row, "MBZ_" + key));
         value.actual += num(raw(row, "CLZ_" + key));
         value.jdz += num(raw(row, "JDZ_" + key));
@@ -77,7 +79,7 @@ function materialSummary(rows: Row[]) {
         if (key.startsWith("GL")) value.hsl += num(raw(row, "HSL_" + key));
         if (key.startsWith("WJ")) value.hgl += num(raw(row, "HGL_" + key));
         if (value.name === key && label !== key) value.name = label;
-        slots.set(key, value);
+        slots.set(slotKey, value);
       }
     }
     return { ...group, items: [...slots.entries()].map(([key, value]) => ({ key, ...value })) };
@@ -231,7 +233,7 @@ export default function ProductionAnalysisPage() {
       && (!constUnit || norm(raw(row, "Const_Unit")) === norm(constUnit))
       && (!saJiangSymbol || norm(raw(row, "SaJiangSymbol")) === norm(saJiangSymbol))
       && (!notes || [raw(row, "Remark"), raw(row, "RecordRemark"), raw(row, "SynchRemark")].some((value) => norm(value).includes(norm(notes))))
-      && (!search || [row.sourceRecordId, row.jobNo, row.customerName, row.projectName, row.concreteGrade, row.truckNo, driverValue, row.operatorName, raw(row, "Prop_No"), raw(row, "Location"), raw(row, "Site_No")].some((value) => norm(value).includes(norm(search))));
+      && (!search || [row.sourceRecordId, row.jobNo, row.customerName, row.projectName, row.concreteGrade, row.truckNo, driverValue, row.operatorName, raw(row, "Prop_No"), raw(row, "Location"), raw(row, "Site_No"), ...Object.values(row.rawSourceData ?? {})].some((value) => norm(value).includes(norm(search))));
   }), [rows, fromTime, toTime, customer, project, mix, mixer, driver, job, state, pump, location, siteNo, contract, techReq, deliveryMode, productionLine, operator, truckVolume, slump, kangShen, readState, attenderCode, constUnit, saJiangSymbol, notes, search]);
 
   const total = filtered.reduce((sum, row) => sum + (row.quantity ?? 0), 0);
@@ -287,10 +289,16 @@ export default function ProductionAnalysisPage() {
       window.alert("حمّل جميع سجلات الفترة أولاً حتى يكون ملف التصدير كاملاً.");
       return;
     }
-    const columns = ["sourceRecordId", "productionAt", "station", "jobNo", "customerName", "projectName", "concreteGrade", "quantity", "truckNo", "driverName", "operatorName", "operationState"];
+    const baseColumns = ["sourceRecordId", "productionAt", "station", "jobNo", "customerName", "projectName", "concreteGrade", "quantity", "truckNo", "driverName", "operatorName", "operationState"];
+    const sourceColumns = [...new Set(filtered.flatMap((row) => Object.keys(row.rawSourceData ?? {})))].sort((a, b) => a.localeCompare(b));
+    const columns = [...baseColumns, ...sourceColumns.map((column) => "source:" + column)];
     const escapeCsv = (value: unknown) => '"' + String(value ?? "").replace(/"/g, '""') + '"';
-    const valueFor = (row: Row, column: string): unknown => column === "station" ? row.station?.name : row[column as keyof Row];
-    const lines = [columns.join(","), ...filtered.map((row) => columns.map((column) => escapeCsv(valueFor(row, column))).join(","))];
+    const valueFor = (row: Row, column: string): unknown => {
+      if (column === "station") return row.station?.name;
+      if (column.startsWith("source:")) return raw(row, column.slice(7));
+      return row[column as keyof Row];
+    };
+    const lines = [columns.map((column) => escapeCsv(column.startsWith("source:") ? column.slice(7) : column)).join(","), ...filtered.map((row) => columns.map((column) => escapeCsv(valueFor(row, column))).join(","))];
     saveFile("demix-production-filtered.csv", "\ufeff" + lines.join("\r\n"), "text/csv;charset=utf-8");
   };
 
@@ -418,7 +426,7 @@ export default function ProductionAnalysisPage() {
           <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">إجمالي الكمية المفلترة (م³)</p><p className="mt-2 text-2xl font-extrabold">{total.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p></div>
           <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">عدد التشغيلات المحملة</p><p className="mt-2 text-2xl font-extrabold">{filtered.length.toLocaleString("en-US")}</p></div>
           <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">متوسط التشغيلة (م³)</p><p className="mt-2 text-2xl font-extrabold">{(filtered.length ? total / filtered.length : 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}</p></div>
-          <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">معرفات تشغيل مكررة</p><p className="mt-2 text-2xl font-extrabold">{duplicateCount.toLocaleString("en-US")}</p></div>
+          <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">تكرار معرف المصدر داخل النتائج</p><p className="mt-2 text-2xl font-extrabold">{duplicateCount.toLocaleString("en-US")}</p></div>
           <div className="rounded-xl border bg-white p-4"><p className="text-xs text-slate-500">تشغيلات ناقصة بيانات أساسية</p><p className="mt-2 text-2xl font-extrabold">{incompleteCount.toLocaleString("en-US")}</p></div>
         </section>
 
