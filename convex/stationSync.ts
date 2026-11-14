@@ -178,7 +178,11 @@ export const checkSourceRecords = internalQuery({
         .withIndex("by_station_source", q => q.eq("stationId", station._id).eq("sourceRecordId", record.sourceRecordId))
         .unique();
       const found = current ?? (legacy?.machineId === undefined ? legacy : null);
-      if (found) matches.push({ sourceRecordId: found.sourceRecordId, sourceHash: found.sourceHash });
+      if (found) matches.push({
+        sourceRecordId: found.sourceRecordId,
+        sourceHash: found.sourceHash,
+        hasRawSourceData: found.rawSourceData !== undefined && found.rawSourceData !== null,
+      });
     }
     return { success: true, matches };
   },
