@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -69,9 +69,13 @@ function materialSummary(rows: Row[]) {
         if (group.id === "unknown" && (isSand || isAggregate)) continue;
 
         const label = key === "WJA1" ? "Admix1" : key === "WJA2" ? "Admix2" : name === "—" ? key : name;
-        const value = slots.get(key) ?? { name: label, expected: 0, actual: 0 };
+        const value = slots.get(key) ?? { name: label, expected: 0, actual: 0, jdz: 0, xdz: 0, hsl: 0, hgl: 0 };
         value.expected += num(raw(row, "MBZ_" + key));
         value.actual += num(raw(row, "CLZ_" + key));
+        value.jdz += num(raw(row, "JDZ_" + key));
+        value.xdz += num(raw(row, "XDZ_" + key));
+        if (key.startsWith("GL")) value.hsl += num(raw(row, "HSL_" + key));
+        if (key.startsWith("WJ")) value.hgl += num(raw(row, "HGL_" + key));
         if (value.name === key && label !== key) value.name = label;
         slots.set(key, value);
       }
@@ -153,6 +157,7 @@ export default function ProductionAnalysisPage() {
   const [saJiangSymbol, setSaJiangSymbol] = useState("");
   const [notes, setNotes] = useState("");
   const [search, setSearch] = useState("");
+  const [loadAllRequested, setLoadAllRequested] = useState(false);
 
   const invalid = Boolean(from && to && from > to);
   const fromAt = from ? new Date(from + "T00:00:00").getTime() : undefined;
@@ -165,6 +170,12 @@ export default function ProductionAnalysisPage() {
   };
   const { results, status, loadMore } = usePaginatedQuery(api.operations.listImportedProductionPage, args, { initialNumItems: 500 });
   const rows = useMemo(() => (results ?? []) as unknown as Row[], [results]);
+
+  useEffect(() => {
+    if (!loadAllRequested) return;
+    if (status === "CanLoadMore") loadMore(500);
+    else if (status === "Exhausted") setLoadAllRequested(false);
+  }, [loadAllRequested, status, loadMore]);
 
   const options = useMemo(() => ({
     customers: [...new Set(rows.map((r) => r.customerName).filter(Boolean) as string[])].sort(),
@@ -272,11 +283,36 @@ export default function ProductionAnalysisPage() {
   };
 
   const exportCsv = () => {
+    if (!exhausted) {
+      window.alert("حمّل جميع سجلات الفترة أولاً حتى يكون ملف التصدير كاملاً.");
+      return;
+    }
     const columns = ["sourceRecordId", "productionAt", "station", "jobNo", "customerName", "projectName", "concreteGrade", "quantity", "truckNo", "driverName", "operatorName", "operationState"];
     const escapeCsv = (value: unknown) => '"' + String(value ?? "").replace(/"/g, '""') + '"';
     const valueFor = (row: Row, column: string): unknown => column === "station" ? row.station?.name : row[column as keyof Row];
     const lines = [columns.join(","), ...filtered.map((row) => columns.map((column) => escapeCsv(valueFor(row, column))).join(","))];
     saveFile("demix-production-filtered.csv", "\ufeff" + lines.join("\r\n"), "text/csv;charset=utf-8");
+  };
+
+  const exportJsonForComparison = () => {
+    if (!exhausted) {
+      window.alert("حمّل جميع سجلات الفترة أولاً حتى لا تكون المقارنة ناقصة.");
+      return;
+    }
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      source: "stationProductionImports",
+      records: rows.map((row) => ({
+        stationCode: row.station?.code ?? "",
+        sourceRecordId: row.sourceRecordId,
+        rawSourceData: row.rawSourceData ?? {},
+      })),
+    };
+    saveFile(
+      "demix-production-for-db-comparison.json",
+      JSON.stringify(payload, null, 2),
+      "application/json;charset=utf-8"
+    );
   };
 
   return (
@@ -367,7 +403,11 @@ export default function ProductionAnalysisPage() {
           </label>
           <div className="flex items-end gap-2">
             <button onClick={reset} className="rounded-lg border px-4 py-2 text-sm font-bold">إعادة ضبط</button>
-            <button onClick={exportCsv} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white">تصدير CSV</button>
+            <button onClick={() => setLoadAllRequested(true)} disabled={exhausted || loadAllRequested} className="rounded-lg border border-teal-300 px-4 py-2 text-sm font-bold text-teal-800 disabled:opacity-50">
+              {exhausted ? "كل سجلات الفترة محملة" : loadAllRequested ? "جارٍ تحميل جميع السجلات..." : "تحميل جميع سجلات الفترة"}
+            </button>
+            <button onClick={exportCsv} disabled={!exhausted} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">تصدير CSV كامل</button>
+            <button onClick={exportJsonForComparison} disabled={!exhausted} className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">تصدير JSON للمقارنة المحلية</button>
           </div>
         </section>
 
@@ -398,7 +438,8 @@ export default function ProductionAnalysisPage() {
                         <p className="font-semibold">{item.name}</p>
                         <p className="mt-1 text-slate-500">متوقع: {item.expected.toLocaleString("en-US")} | فعلي: {item.actual.toLocaleString("en-US")}</p>
                         <p className="text-slate-500">لكل م³ — متوقع: {(total > 0 ? item.expected / total : 0).toLocaleString("en-US", { maximumFractionDigits: 3 })} | فعلي: {(total > 0 ? item.actual / total : 0).toLocaleString("en-US", { maximumFractionDigits: 3 })}</p>
-                        <p className="text-slate-400">فرق: {(item.actual - item.expected).toLocaleString("en-US")} | الفرق لكل م³: {(total > 0 ? (item.actual - item.expected) / total : 0).toLocaleString("en-US", { maximumFractionDigits: 3 })}</p>
+                        <p className="text-slate-400">فرق MBZ/CLZ: {(item.actual - item.expected).toLocaleString("en-US")} | الفرق لكل م³: {(total > 0 ? (item.actual - item.expected) / total : 0).toLocaleString("en-US", { maximumFractionDigits: 3 })}</p>
+                        <p className="mt-1 text-slate-500">حقول المصدر الإضافية — JDZ: {item.jdz.toLocaleString("en-US")} | XDZ: {item.xdz.toLocaleString("en-US")}{item.hsl ? " | HSL: " + item.hsl.toLocaleString("en-US") : ""}{item.hgl ? " | HGL: " + item.hgl.toLocaleString("en-US") : ""}</p>
                       </div>
                     ))}
                   </div>
@@ -444,7 +485,7 @@ export default function ProductionAnalysisPage() {
         <section className="overflow-x-auto rounded-xl border bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-bold">تفاصيل التشغيلات</h2>
-            <span className="text-xs text-slate-500">تم تحميل {rows.length.toLocaleString("en-US")} سجلًا — {exhausted ? "كل نتائج الفترة محملة" : "حمّل المزيد لاستكمال النتائج"}</span>
+            <span className="text-xs text-slate-500">تم تحميل {rows.length.toLocaleString("en-US")} سجلًا — {exhausted ? "كل نتائج الفترة محملة" : loadAllRequested ? "جارٍ تحميل بقية النتائج تلقائيًا" : "النتائج جزئية حتى تحميل بقية السجلات"}</span>
           </div>
           <table className="mt-3 w-full min-w-[1250px] text-right text-sm">
             <thead className="bg-slate-50">
@@ -485,8 +526,8 @@ export default function ProductionAnalysisPage() {
             <h2 className="font-bold">المقارنة اليدوية مع DB.MDB — محليًا فقط</h2>
             <span className="text-xs">لا يتم رفع ملف Access</span>
           </div>
-          <p>للمقارنة الكاملة: من جهاز المحطة شغّل الموصل واختر DB.MDB يدويًا. الأداة تجلب بيانات DeMix للمحطة عبر اتصال قراءة فقط، وتقارن كل أعمدة المصدر، ثم تحفظ CSV وJSON على جهازك. لا يُرسل ملف Access أو سجلاته الخام إلى Vercel أو Convex.</p>
-          <p className="mt-3 rounded-lg bg-white/70 p-3 font-mono text-xs" dir="ltr">python .\\connector.py --compare-preview</p>
+          <p>للمقارنة الكاملة: حمّل جميع سجلات الفترة ثم صدّر JSON من الزر أعلاه. على جهاز المحطة شغّل أداة المقارنة المحلية واختر DB.MDB وملف JSON. تتم المقارنة محليًا دون رفع ملف Access أو تعديل قاعدة المحطة، ويُحفظ تقرير CSV وJSON على الجهاز.</p>
+          <p className="mt-3 rounded-lg bg-white/70 p-3 font-mono text-xs" dir="ltr">py .\\compare_db.py</p>
         </section>
 
         <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">NAM_WJA1 = Admix1 وNAM_WJA2 = Admix2 حسب الاتفاق. لم أفترض معنى NAM_WJA3 أو أي خانة غير معتمدة. الأعمدة الأخرى محفوظة كما وردت من المصدر. لا يوجد خصم مخزني تلقائي.</p>
