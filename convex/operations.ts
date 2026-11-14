@@ -21,7 +21,13 @@ const uniqueBy = async (ctx: any, table: string, index: string, field: string, v
 export const registerOperationsPermissions = mutation({
   args: {},
   handler: async (ctx) => {
-    const { user } = await requireCentralPermission(ctx, "system.permissions.manage");
+    const { user, role } = await requireCentralPermission(ctx, "system.permissions.manage");
+
+    // Only the active system central super-admin may grant these two read permissions.
+    if (role.code !== "CENTRAL_SUPER_ADMIN" || role.scope !== "central" || role.isSystem !== true) {
+      throw new Error("CENTRAL_SUPER_ADMIN_REQUIRED");
+    }
+
     const catalog = [
       ["equipment.view", "عرض المعدات والصيانة", "equipment", "view"],
       ["equipment.manage", "إدارة المعدات والصيانة", "equipment", "manage"],
@@ -29,21 +35,58 @@ export const registerOperationsPermissions = mutation({
       ["inventory.manage", "إدارة المخازن وحركات المخزون", "inventory", "manage"],
       ["operations.reports.view", "عرض تقارير التشغيل الموحدة", "operations.reports", "view"],
     ] as const;
+
     const created: string[] = [];
     const existing: string[] = [];
+    const assigned: string[] = [];
+    const alreadyAssigned: string[] = [];
+
     for (const [code, name, module, action] of catalog) {
-      const rows = await ctx.db.query("permissions").withIndex("by_code", q => q.eq("code", code)).take(2);
+      const rows = await ctx.db.query("permissions")
+        .withIndex("by_code", q => q.eq("code", code))
+        .take(2);
       if (rows.length > 1) throw new Error("DUPLICATE_PERMISSION_DEFINITION: " + code);
-      if (rows.length) { existing.push(code); continue; }
-      await ctx.db.insert("permissions", { code, name, module, action, createdAt: Date.now() });
-      created.push(code);
+
+      const permissionId = rows[0]?._id ?? await ctx.db.insert("permissions", {
+        code, name, module, action, createdAt: Date.now(),
+      });
+      if (rows.length) existing.push(code);
+      else created.push(code);
+
+      // Grant view-only access to the central super-admin role. No manage grants are added.
+      if (code === "equipment.view" || code === "operations.reports.view") {
+        const links = await ctx.db.query("rolePermissions")
+          .withIndex("by_role_permission", q =>
+            q.eq("roleId", role._id).eq("permissionId", permissionId))
+          .take(2);
+        if (links.length > 1) throw new Error("DUPLICATE_ROLE_PERMISSION: " + code);
+        if (links.length === 0) {
+          await ctx.db.insert("rolePermissions", {
+            roleId: role._id, permissionId, assignedAt: Date.now(),
+          });
+          assigned.push(code);
+        } else {
+          alreadyAssigned.push(code);
+        }
+      }
     }
+
     await appendAuditLog(ctx, {
-      action: "operations.permissions.register", entityType: "permission_catalog",
-      entityId: "operations-v1", operationId: "operations-permissions-register-" + user._id,
-      details: { created, existing, note: "Definitions only; no role assignments changed." },
+      action: "operations.permissions.register_and_assign",
+      entityType: "central_role",
+      entityId: role._id,
+      operationId: "operations-permissions-register-v2-" + user._id,
+      details: {
+        roleCode: role.code,
+        created,
+        existing,
+        assigned,
+        alreadyAssigned,
+        note: "Only equipment.view and operations.reports.view granted to CENTRAL_SUPER_ADMIN; no manage permissions changed.",
+      },
     });
-    return { success: true, created, existing };
+
+    return { success: true, created, existing, assigned, alreadyAssigned };
   },
 });
 
