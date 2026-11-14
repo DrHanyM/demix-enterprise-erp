@@ -311,30 +311,41 @@ export const listImportedProductionPage = query({
           q.eq("stationId", args.stationId!).gte("productionAt", fromAt).lte("productionAt", toAt))
       : ctx.db.query("stationProductionImports").withIndex("by_productionAt", q =>
           q.gte("productionAt", fromAt).lte("productionAt", toAt));
-    const filtered = base.filter(q => q.and(
-      (!args.customer || q.or(q.eq(q.field("customerName"), args.customer), q.eq(q.field("rawSourceData.CUST_NM"), args.customer))) &&
-      (!args.project || q.or(q.eq(q.field("projectName"), args.project), q.eq(q.field("rawSourceData.PROJ_NM"), args.project))) &&
-      (!args.mix || q.or(q.eq(q.field("concreteGrade"), args.mix), q.eq(q.field("rawSourceData.Strength"), args.mix))) &&
-      (!args.mixer || q.or(q.eq(q.field("truckNo"), args.mixer), q.eq(q.field("rawSourceData.Truck_No"), args.mixer))) &&
-      (!args.driver || q.or(q.eq(q.field("driverName"), args.driver), q.eq(q.field("rawSourceData.Driver"), args.driver))) &&
-      (!args.job || q.or(q.eq(q.field("jobNo"), args.job), q.eq(q.field("rawSourceData.Job_No"), args.job))) &&
-      (!args.state || q.or(q.eq(q.field("operationState"), args.state), q.eq(q.field("rawSourceData.OperationState"), args.state))) &&
-      (!args.pump || q.eq(q.field("rawSourceData.Prop_No"), args.pump)) &&
-      (!args.location || q.eq(q.field("rawSourceData.Location"), args.location)) &&
-      (!args.siteNo || q.eq(q.field("rawSourceData.Site_No"), args.siteNo)) &&
-      (!args.contract || q.eq(q.field("rawSourceData.Contr_No"), args.contract)) &&
-      (!args.techReq || q.eq(q.field("rawSourceData.Tech_Req"), args.techReq)) &&
-      (!args.deliveryMode || q.eq(q.field("rawSourceData.Delivery_Mode"), args.deliveryMode)) &&
-      (!args.productionLine || q.eq(q.field("rawSourceData.ProduceLine"), args.productionLine)) &&
-      (!args.operator || q.or(q.eq(q.field("operatorName"), args.operator), q.eq(q.field("rawSourceData.Operator"), args.operator))) &&
-      (!args.truckVolume || q.eq(q.field("rawSourceData.Truck_vol"), args.truckVolume)) &&
-      (!args.slump || q.eq(q.field("rawSourceData.TaLuoDu"), args.slump)) &&
-      (!args.kangShen || q.eq(q.field("rawSourceData.KangShenLevel"), args.kangShen)) &&
-      (!args.readState || q.eq(q.field("rawSourceData.ReadState"), args.readState)) &&
-      (!args.attenderCode || q.eq(q.field("rawSourceData.AttemperCode"), args.attenderCode)) &&
-      (!args.constUnit || q.eq(q.field("rawSourceData.Const_Unit"), args.constUnit)) &&
-      (!args.saJiangSymbol || q.eq(q.field("rawSourceData.SaJiangSymbol"), args.saJiangSymbol))
-    ));
+    const hasDetailedFilters = Boolean(
+      args.customer || args.project || args.mix || args.mixer || args.driver ||
+      args.job || args.state || args.pump || args.location || args.siteNo ||
+      args.contract || args.techReq || args.deliveryMode || args.productionLine ||
+      args.operator || args.truckVolume || args.slump || args.kangShen ||
+      args.readState || args.attenderCode || args.constUnit || args.saJiangSymbol
+    );
+    const filtered = hasDetailedFilters
+      ? base.filter(q => {
+          const filters = [];
+          if (args.customer) filters.push(q.or(q.eq(q.field("customerName"), args.customer), q.eq(q.field("rawSourceData.CUST_NM"), args.customer)));
+          if (args.project) filters.push(q.or(q.eq(q.field("projectName"), args.project), q.eq(q.field("rawSourceData.PROJ_NM"), args.project)));
+          if (args.mix) filters.push(q.or(q.eq(q.field("concreteGrade"), args.mix), q.eq(q.field("rawSourceData.Strength"), args.mix)));
+          if (args.mixer) filters.push(q.or(q.eq(q.field("truckNo"), args.mixer), q.eq(q.field("rawSourceData.Truck_No"), args.mixer)));
+          if (args.driver) filters.push(q.or(q.eq(q.field("driverName"), args.driver), q.eq(q.field("rawSourceData.Driver"), args.driver)));
+          if (args.job) filters.push(q.or(q.eq(q.field("jobNo"), args.job), q.eq(q.field("rawSourceData.Job_No"), args.job)));
+          if (args.state) filters.push(q.or(q.eq(q.field("operationState"), args.state), q.eq(q.field("rawSourceData.OperationState"), args.state)));
+          if (args.pump) filters.push(q.eq(q.field("rawSourceData.Prop_No"), args.pump));
+          if (args.location) filters.push(q.eq(q.field("rawSourceData.Location"), args.location));
+          if (args.siteNo) filters.push(q.eq(q.field("rawSourceData.Site_No"), args.siteNo));
+          if (args.contract) filters.push(q.eq(q.field("rawSourceData.Contr_No"), args.contract));
+          if (args.techReq) filters.push(q.eq(q.field("rawSourceData.Tech_Req"), args.techReq));
+          if (args.deliveryMode) filters.push(q.eq(q.field("rawSourceData.Delivery_Mode"), args.deliveryMode));
+          if (args.productionLine) filters.push(q.eq(q.field("rawSourceData.ProduceLine"), args.productionLine));
+          if (args.operator) filters.push(q.or(q.eq(q.field("operatorName"), args.operator), q.eq(q.field("rawSourceData.Operator"), args.operator)));
+          if (args.truckVolume) filters.push(q.eq(q.field("rawSourceData.Truck_vol"), args.truckVolume));
+          if (args.slump) filters.push(q.eq(q.field("rawSourceData.TaLuoDu"), args.slump));
+          if (args.kangShen) filters.push(q.eq(q.field("rawSourceData.KangShenLevel"), args.kangShen));
+          if (args.readState) filters.push(q.eq(q.field("rawSourceData.ReadState"), args.readState));
+          if (args.attenderCode) filters.push(q.eq(q.field("rawSourceData.AttemperCode"), args.attenderCode));
+          if (args.constUnit) filters.push(q.eq(q.field("rawSourceData.Const_Unit"), args.constUnit));
+          if (args.saJiangSymbol) filters.push(q.eq(q.field("rawSourceData.SaJiangSymbol"), args.saJiangSymbol));
+          return q.and(...filters);
+        })
+      : base;
     const page = await filtered.order("desc").paginate(args.paginationOpts);
     const stations = await ctx.db.query("stations").collect();
     const names = new Map(stations.map(station => [station._id, { name: station.name, code: station.code }]));
