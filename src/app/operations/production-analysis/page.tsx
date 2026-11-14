@@ -172,7 +172,6 @@ export default function ProductionAnalysisPage() {
   const [saJiangSymbol, setSaJiangSymbol] = useState("");
   const [notes, setNotes] = useState("");
   const [search, setSearch] = useState("");
-  const [loadAllRequested, setLoadAllRequested] = useState(false);
 
   const invalid = Boolean(from && to && from > to);
   const fromAt = from ? new Date(from + "T00:00:00").getTime() : undefined;
@@ -187,10 +186,8 @@ export default function ProductionAnalysisPage() {
   const rows = useMemo(() => (results ?? []) as unknown as Row[], [results]);
 
   useEffect(() => {
-    if (!loadAllRequested) return;
     if (status === "CanLoadMore") loadMore(500);
-    else if (status === "Exhausted") setLoadAllRequested(false);
-  }, [loadAllRequested, status, loadMore]);
+  }, [status, loadMore]);
 
   const options = useMemo(() => ({
     customers: [...new Set(rows.map((r) => r.customerName ?? raw(r, "CUST_NM")).filter(Boolean) as string[])].sort(),
@@ -259,7 +256,8 @@ export default function ProductionAnalysisPage() {
       const value = groups.get(day) ?? { qty: 0, count: 0, customers: new Set<string>() };
       value.qty += row.quantity ?? 0;
       value.count += 1;
-      if (row.customerName) value.customers.add(row.customerName);
+      const customerName = row.customerName ?? raw(row, "CUST_NM");
+      if (customerName) value.customers.add(String(customerName));
       groups.set(day, value);
     }
     return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
@@ -444,9 +442,6 @@ export default function ProductionAnalysisPage() {
           </label>
           <div className="flex items-end gap-2">
             <button onClick={reset} className="rounded-lg border px-4 py-2 text-sm font-bold">إعادة ضبط</button>
-            <button onClick={() => setLoadAllRequested(true)} disabled={exhausted || loadAllRequested} className="rounded-lg border border-teal-300 px-4 py-2 text-sm font-bold text-teal-800 disabled:opacity-50">
-              {exhausted ? "كل سجلات الفترة محملة" : loadAllRequested ? "جارٍ تحميل جميع السجلات..." : "تحميل جميع سجلات الفترة"}
-            </button>
             <button onClick={exportCsv} disabled={!exhausted} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">تصدير CSV كامل</button>
             <button onClick={exportJsonForComparison} disabled={!exhausted} className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">تصدير JSON للمقارنة المحلية</button>
           </div>
@@ -526,7 +521,7 @@ export default function ProductionAnalysisPage() {
         <section className="overflow-x-auto rounded-xl border bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-bold">تفاصيل التشغيلات</h2>
-            <span className="text-xs text-slate-500">تم تحميل {rows.length.toLocaleString("en-US")} سجلًا — {exhausted ? "كل نتائج الفترة محملة" : loadAllRequested ? "جارٍ تحميل بقية النتائج تلقائيًا" : "النتائج جزئية حتى تحميل بقية السجلات"}</span>
+            <span className="text-xs text-slate-500">تم تحميل {rows.length.toLocaleString("en-US")} سجلًا — {exhausted ? "كل نتائج الفترة محملة" : status === "CanLoadMore" || status === "LoadingMore" ? "جارٍ تحميل بقية النتائج تلقائيًا" : "جارٍ تحميل النتائج"}</span>
           </div>
           <table className="mt-3 w-full min-w-[1250px] text-right text-sm">
             <thead className="bg-slate-50">
@@ -557,7 +552,6 @@ export default function ProductionAnalysisPage() {
               ))}
             </tbody>
           </table>
-          {status === "CanLoadMore" && <div className="mt-4 text-center"><button onClick={() => loadMore(500)} className="rounded-lg bg-slate-800 px-5 py-2 text-sm font-bold text-white">تحميل 500 سجل إضافي</button></div>}
           {status === "LoadingMore" && <p className="mt-3 text-center text-sm text-slate-500">جارٍ تحميل المزيد...</p>}
           {status === "LoadingFirstPage" && <p className="mt-3 text-center text-sm text-slate-500">جارٍ تحميل الإنتاج...</p>}
         </section>
