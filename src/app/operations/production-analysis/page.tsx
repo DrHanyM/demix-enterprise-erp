@@ -23,6 +23,17 @@ type Row = {
   rawSourceData?: Record<string, unknown>;
 };
 
+const MONTHS = [
+  ["01", "يناير"], ["02", "فبراير"], ["03", "مارس"], ["04", "أبريل"],
+  ["05", "مايو"], ["06", "يونيو"], ["07", "يوليو"], ["08", "أغسطس"],
+  ["09", "سبتمبر"], ["10", "أكتوبر"], ["11", "نوفمبر"], ["12", "ديسمبر"],
+] as const;
+const YEARS = Array.from({ length: 12 }, (_, i) => String(2024 + i));
+const monthBounds = (year: string, month: string) => {
+  const lastDay = new Date(Number(year), Number(month), 0).getDate();
+  return { from: `${year}-${month}-01`, to: `${year}-${month}-${String(lastDay).padStart(2, "0")}` };
+};
+
 const today = () => {
   const d = new Date();
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
@@ -130,8 +141,10 @@ function BreakdownTable({ title, items }: { title: string; items: { name: string
 }
 
 export default function ProductionAnalysisPage() {
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(today);
+  const [from, setFrom] = useState("2026-08-01");
+  const [to, setTo] = useState("2026-08-31");
+  const [selectedMonth, setSelectedMonth] = useState("08");
+  const [selectedYear, setSelectedYear] = useState("2026");
   const [fromTime, setFromTime] = useState("");
   const [toTime, setToTime] = useState("");
   const [stationId, setStationId] = useState("");
@@ -180,9 +193,9 @@ export default function ProductionAnalysisPage() {
   }, [loadAllRequested, status, loadMore]);
 
   const options = useMemo(() => ({
-    customers: [...new Set(rows.map((r) => r.customerName).filter(Boolean) as string[])].sort(),
-    projects: [...new Set(rows.map((r) => r.projectName).filter(Boolean) as string[])].sort(),
-    mixes: [...new Set(rows.map((r) => r.concreteGrade).filter(Boolean) as string[])].sort(),
+    customers: [...new Set(rows.map((r) => r.customerName ?? raw(r, "CUST_NM")).filter(Boolean) as string[])].sort(),
+    projects: [...new Set(rows.map((r) => r.projectName ?? raw(r, "PROJ_NM")).filter(Boolean) as string[])].sort(),
+    mixes: [...new Set(rows.map((r) => r.concreteGrade ?? raw(r, "Strength")).filter(Boolean) as string[])].sort(),
     mixers: [...new Set(rows.map((r) => show(r.truckNo ?? raw(r, "Truck_No"))).filter((x) => x !== "—"))].sort(),
     drivers: [...new Set(rows.map((r) => show(r.driverName ?? raw(r, "Driver"))).filter((x) => x !== "—"))].sort(),
     jobs: [...new Set(rows.map((r) => show(r.jobNo ?? raw(r, "Job_No"))).filter((x) => x !== "—"))].sort(),
@@ -210,9 +223,9 @@ export default function ProductionAnalysisPage() {
     const driverValue = row.driverName ?? raw(row, "Driver");
     return (!fromTime || time >= fromTime)
       && (!toTime || time <= toTime)
-      && (!customer || norm(row.customerName) === norm(customer))
-      && (!project || norm(row.projectName) === norm(project))
-      && (!mix || norm(row.concreteGrade) === norm(mix))
+      && (!customer || norm(row.customerName ?? raw(row, "CUST_NM")) === norm(customer))
+      && (!project || norm(row.projectName ?? raw(row, "PROJ_NM")) === norm(project))
+      && (!mix || norm(row.concreteGrade ?? raw(row, "Strength")) === norm(mix))
       && (!mixer || norm(row.truckNo ?? raw(row, "Truck_No")) === norm(mixer))
       && (!driver || norm(driverValue) === norm(driver))
       && (!job || norm(row.jobNo ?? raw(row, "Job_No")) === norm(job))
@@ -233,7 +246,7 @@ export default function ProductionAnalysisPage() {
       && (!constUnit || norm(raw(row, "Const_Unit")) === norm(constUnit))
       && (!saJiangSymbol || norm(raw(row, "SaJiangSymbol")) === norm(saJiangSymbol))
       && (!notes || [raw(row, "Remark"), raw(row, "RecordRemark"), raw(row, "SynchRemark")].some((value) => norm(value).includes(norm(notes))))
-      && (!search || [row.sourceRecordId, row.jobNo, row.customerName, row.projectName, row.concreteGrade, row.truckNo, driverValue, row.operatorName, raw(row, "Prop_No"), raw(row, "Location"), raw(row, "Site_No"), ...Object.values(row.rawSourceData ?? {})].some((value) => norm(value).includes(norm(search))));
+      && (!search || [row.sourceRecordId, row.jobNo, row.customerName, row.projectName, row.concreteGrade, row.truckNo, driverValue, row.operatorName, row.operationState, row.station?.name, row.station?.code, raw(row, "CUST_NM"), raw(row, "PROJ_NM"), raw(row, "Strength"), raw(row, "Prop_No"), raw(row, "Location"), raw(row, "Site_No"), ...Object.values(row.rawSourceData ?? {})].some((value) => norm(value).includes(norm(search))));
   }), [rows, fromTime, toTime, customer, project, mix, mixer, driver, job, state, pump, location, siteNo, contract, techReq, deliveryMode, productionLine, operator, truckVolume, slump, kangShen, readState, attenderCode, constUnit, saJiangSymbol, notes, search]);
 
   const total = filtered.reduce((sum, row) => sum + (row.quantity ?? 0), 0);
@@ -258,8 +271,8 @@ export default function ProductionAnalysisPage() {
   const monthly = useMemo(() => breakdown(filtered, (row) => dayOf(row.productionAt).slice(0, 7)), [filtered]);
   const yearly = useMemo(() => breakdown(filtered, (row) => dayOf(row.productionAt).slice(0, 4)), [filtered]);
   const byStation = useMemo(() => breakdown(filtered, (row) => row.station?.name ?? ""), [filtered]);
-  const byCustomer = useMemo(() => breakdown(filtered, (row) => row.customerName ?? ""), [filtered]);
-  const byProject = useMemo(() => breakdown(filtered, (row) => row.projectName ?? ""), [filtered]);
+  const byCustomer = useMemo(() => breakdown(filtered, (row) => String(row.customerName ?? raw(row, "CUST_NM") ?? "")), [filtered]);
+  const byProject = useMemo(() => breakdown(filtered, (row) => String(row.projectName ?? raw(row, "PROJ_NM") ?? "")), [filtered]);
   const byLine = useMemo(() => breakdown(filtered, (row) => show(raw(row, "ProduceLine"))), [filtered]);
   const byMixer = useMemo(() => breakdown(filtered, (row) => show(row.truckNo ?? raw(row, "Truck_No"))), [filtered]);
   const byDriver = useMemo(() => breakdown(filtered, (row) => show(row.driverName ?? raw(row, "Driver"))), [filtered]);
@@ -274,11 +287,11 @@ export default function ProductionAnalysisPage() {
     }
     return duplicates.size;
   }, [filtered]);
-  const incompleteCount = filtered.filter((row) => !row.customerName || !row.projectName || !row.jobNo || row.quantity === undefined).length;
+  const incompleteCount = filtered.filter((row) => !(row.customerName ?? raw(row, "CUST_NM")) || !(row.projectName ?? raw(row, "PROJ_NM")) || !(row.jobNo ?? raw(row, "Job_No")) || row.quantity === undefined).length;
 
   const exhausted = status === "Exhausted";
   const reset = () => {
-    setFrom(""); setTo(""); setFromTime(""); setToTime(""); setStationId("");
+    setSelectedMonth("08"); setSelectedYear("2026"); setFrom("2026-08-01"); setTo("2026-08-31"); setFromTime(""); setToTime(""); setStationId("");
     setCustomer(""); setProject(""); setMix(""); setMixer(""); setDriver(""); setJob(""); setState("");
     setPump(""); setLocation(""); setSiteNo(""); setContract(""); setTechReq(""); setDeliveryMode(""); setProductionLine("");
     setOperator(""); setTruckVolume(""); setSlump(""); setKangShen(""); setReadState(""); setAttenderCode(""); setConstUnit(""); setSaJiangSymbol(""); setNotes(""); setSearch("");
@@ -336,8 +349,28 @@ export default function ProductionAnalysisPage() {
         </div>
 
         <section className="grid gap-3 rounded-xl border bg-white p-4 md:grid-cols-4 xl:grid-cols-6">
-          <label className="text-xs text-slate-600">من تاريخ<input type="date" className="mt-1 block w-full rounded-lg border p-2 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-          <label className="text-xs text-slate-600">إلى تاريخ<input type="date" className="mt-1 block w-full rounded-lg border p-2 text-sm" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+          <label className="text-xs text-slate-600">الشهر
+            <select className="mt-1 block w-full rounded-lg border p-2 text-sm" value={selectedMonth} onChange={(e) => {
+              const month = e.target.value; setSelectedMonth(month);
+              if (month && selectedYear) { const range = monthBounds(selectedYear, month); setFrom(range.from); setTo(range.to); }
+              else { setFrom(""); setTo(""); }
+            }}>
+              <option value="">نطاق مخصص</option>
+              {MONTHS.map(([value, label]) => <option key={value} value={value}>{value} — {label}</option>)}
+            </select>
+          </label>
+          <label className="text-xs text-slate-600">السنة
+            <select className="mt-1 block w-full rounded-lg border p-2 text-sm" value={selectedYear} onChange={(e) => {
+              const year = e.target.value; setSelectedYear(year);
+              if (year && selectedMonth) { const range = monthBounds(year, selectedMonth); setFrom(range.from); setTo(range.to); }
+              else { setFrom(""); setTo(""); }
+            }}>
+              <option value="">نطاق مخصص</option>
+              {YEARS.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
+          </label>
+          <label className="text-xs text-slate-600">من تاريخ<input type="date" className="mt-1 block w-full rounded-lg border p-2 text-sm" value={from} onChange={(e) => { setFrom(e.target.value); setSelectedMonth(""); setSelectedYear(""); }} /></label>
+          <label className="text-xs text-slate-600">إلى تاريخ<input type="date" className="mt-1 block w-full rounded-lg border p-2 text-sm" value={to} onChange={(e) => { setTo(e.target.value); setSelectedMonth(""); setSelectedYear(""); }} /></label>
           <label className="text-xs text-slate-600">من ساعة<input type="time" className="mt-1 block w-full rounded-lg border p-2 text-sm" value={fromTime} onChange={(e) => setFromTime(e.target.value)} /></label>
           <label className="text-xs text-slate-600">إلى ساعة<input type="time" className="mt-1 block w-full rounded-lg border p-2 text-sm" value={toTime} onChange={(e) => setToTime(e.target.value)} /></label>
           <label className="text-xs text-slate-600">المحطة
@@ -506,9 +539,9 @@ export default function ProductionAnalysisPage() {
                   <td className="p-3">{row.station?.name ?? "—"}<div className="text-xs text-slate-400">{row.station?.code}</div></td>
                   <td className="p-3">{row.sourceRecordId}</td>
                   <td className="p-3">{row.jobNo ?? show(raw(row, "Job_No"))}</td>
-                  <td className="p-3">{row.customerName ?? "—"}</td>
-                  <td className="p-3">{row.projectName ?? "—"}</td>
-                  <td className="p-3">{row.concreteGrade ?? "—"}</td>
+                  <td className="p-3">{show(row.customerName ?? raw(row, "CUST_NM"))}</td>
+                  <td className="p-3">{show(row.projectName ?? raw(row, "PROJ_NM"))}</td>
+                  <td className="p-3">{show(row.concreteGrade ?? raw(row, "Strength"))}</td>
                   <td className="p-3 font-bold">{row.quantity ?? "—"}</td>
                   <td className="p-3">{row.truckNo ?? show(raw(row, "Truck_No"))}</td>
                   <td className="p-3">{row.driverName ?? show(raw(row, "Driver"))}</td>
