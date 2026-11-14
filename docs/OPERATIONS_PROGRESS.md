@@ -67,3 +67,18 @@ This file is the persistent checkpoint for the operations work. Continue from th
 - Station connector tests workflow: https://github.com/DrHanyM/demix-enterprise-erp/actions/workflows/station-connector-tests.yml
 
 Update this checkpoint after every implementation, test, correction, and deployment. Never mark a gate complete unless it has been verified.
+
+
+## 2026-11-14 — Production analysis and station comparison follow-up
+
+- [x] Production analysis can load all remaining pages in the selected station/date range before reporting or exporting, rather than silently treating the first 500 rows as the complete result.
+- [x] Full CSV export is enabled only after the selected result set is fully loaded.
+- [x] Added a local-comparison JSON export containing station code, source record ID, and original raw source fields; the Access database is not uploaded.
+- [x] Material analysis now preserves and displays the source fields MBZ, CLZ, JDZ, XDZ, HSL (GL slots), and HGL (WJ slots). Only NAM_WJA1 and NAM_WJA2 retain the agreed Admix1/Admix2 labels; no unconfirmed material-field meanings are inferred.
+- [x] Corrected the local comparison command to run `py .\\compare_db.py`.
+- [x] Local comparison now matches by source ID first and falls back to the agreed composite identity: ScTime + customer + project + Output_vol. Ambiguous duplicate composite keys are not auto-matched.
+- [x] Station sync check response now reports whether rawSourceData exists, matching the connector's reconciliation contract.
+- [x] GitHub Actions Station Connector Tests passed for the comparison-tool update: https://github.com/DrHanyM/demix-enterprise-erp/actions/runs/43556252407
+- [ ] Verify the Vercel Preview build for the production-analysis page changes.
+- [ ] After the current station upload completes, deploy the stationSync check-response change to the intended Convex Preview deployment and verify repeat-run skip behavior.
+- [ ] Test the JSON export and local DB.MDB comparison on the station PC. No Production deployment.
