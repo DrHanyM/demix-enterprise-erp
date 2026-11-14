@@ -107,7 +107,6 @@ def main():
             if len(local_ids)==1 and len(remote_ids)==1:
                 local_to_remote[local_ids[0]]=remote_ids[0]
                 remote_used.add(remote_ids[0])
-                matched_by_composite+=1
 
         matched=file_only=demix_only=different=0
         details=[]
@@ -137,7 +136,7 @@ def main():
                     if value_diffs:
                         status="different_by_composite"; different+=1
                     else:
-                        status="matched_by_composite"
+                        status="matched_by_composite"; matched_by_composite+=1
                 elif value_diffs:
                     status="different"; changed_parts=value_diffs; different+=1
                 else:
